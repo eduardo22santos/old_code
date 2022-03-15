@@ -1,0 +1,14 @@
+{
+    "name": "salvar",
+    "description": "manipula os arquivos no sd card",
+    "keywords": "sd",
+    "authors": [
+        {
+            "name": "Eduardo Jose Dos Santos",
+            "email": "eduardo22santos@hotmail.com",
+            "maintainer": true
+        }
+    ],
+    "version": "1",
+    "frameworks": "Arduino"
+}

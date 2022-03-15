@@ -1,0 +1,14 @@
+{
+    "name": "indices",
+    "description": "calcula os indices de conforto termico",
+    "keywords": "itu, itgu, orvalho, umidade, temperatura, globo negro",
+    "authors": [
+        {
+            "name": "Eduardo Jose Dos Santos",
+            "email": "eduardo22santos@hotmail.com",
+            "maintainer": true
+        }
+    ],
+    "version": "1",
+    "frameworks": "Arduino"
+}
