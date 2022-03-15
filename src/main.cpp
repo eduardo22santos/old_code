@@ -1,15 +1,22 @@
-/*
-Projeto de Pesquisa: 	PII9027-2020 - Sistema embarcado para determinação remota de índices
-de conforto térmico, com globo negro confeccionado em impressão 3D
-Orientador: 	WELINGTON GONZAGA DO VALE
-Centro: 	FUNDAÇÃO UNIVERSIDADE FEDERAL DE SERGIPE
-Departamento: 	DEPARTAMENTO DE ENGENHARIA AGRÍCOLA
-Cota: 	PIBITI 2020/2021 (01/08/2020 a 31/07/2021)
-
-DESENVOLVIDO POR EDUARDO JOSÉ DOS SANTOS, TÉCNICO EM AGROPECUÁRIA E GRADUANDO EM ENGENHARIA AGRÍCOLA
-NA UNIVERSIDADE FEDERAL DE SERGIPE
-LATTES:  http://lattes.cnpq.br/6167567889414237
-*/
+/**
+ * @file main.cpp
+ * @author Eduardo José dos Santos (eduardo22santos@hotmail.com)
+ * @brief   Projeto de Pesquisa: 	PII9027-2020 - Sistema embarcado para determinação remota de índices
+ *          de conforto térmico, com globo negro confeccionado em impressão 3D
+ *          Orientador: 	WELINGTON GONZAGA DO VALE
+ *          Centro: 	FUNDAÇÃO UNIVERSIDADE FEDERAL DE SERGIPE
+ *          Departamento: 	DEPARTAMENTO DE ENGENHARIA AGRÍCOLA
+ *          Cota: 	PIBITI 2020/2021 (01/08/2020 a 31/07/2021)
+ *
+ *          DESENVOLVIDO POR EDUARDO JOSÉ DOS SANTOS, TÉCNICO EM AGROPECUÁRIA E GRADUANDO EM ENGENHARIA AGRÍCOLA
+ *          NA UNIVERSIDADE FEDERAL DE SERGIPE
+ *          LATTES:  http://lattes.cnpq.br/6167567889414237
+ * @version beta
+ * @date 2022-03-15
+ * 
+ * @copyright Copyright (c) 2022
+ * 
+ */
 
 #include <Arduino.h>
 #include <Wire.h>
