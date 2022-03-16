@@ -405,11 +405,6 @@ String httpHorario;
  */
 void redefinir();
 /**
- * @brief Indica se a tela está em uso
- * 
- */
-bool telaLigada = true;
-/**
  * @brief Função callback para o alarme do rtc
  * 
  */
@@ -665,8 +660,18 @@ void setup()
         display.display();
         Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
                       "try a different address!"));
-        while (1) delay(10);
+        while (!bmp.begin(0x76))
+        {
+            digitalWrite(LED_VERDE, LOW);
+            digitalWrite(LED_VERMELHO,LOW);
+            vTaskDelay(250 / portTICK_PERIOD_MS);
+            digitalWrite(LED_VERDE, HIGH);
+            digitalWrite(LED_VERMELHO, HIGH);
+            vTaskDelay(250 / portTICK_PERIOD_MS);
+        }   
     }
+
+
 
     /* Default settings from datasheet. sensor de pressão bmp280 */
     bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
@@ -910,9 +915,6 @@ void loopRelogio(void * pvParameters)
 
             if ((currentMillis - intervaloLerVariaveis) >= long(5000))
             {
-                Serial.println(currentMillis);
-                Serial.println(intervaloLerVariaveis);
-                Serial.println(currentMillis-intervaloLerVariaveis);
                 intervaloLerVariaveis = currentMillis;
                 globoNegro.requestTemperatures();
                 bulboSeco.requestTemperatures();
@@ -925,7 +927,6 @@ void loopRelogio(void * pvParameters)
             if ((currentMillis - intervaloSalvarDados) >= (config.intervaloSalvar*1000))
             {
                 intervaloSalvarDados = currentMillis;
-                if(telaLigada) telaLigada = false;
                 xTaskCreatePinnedToCore(tarefaSalvar, "tarefa_Salvar", 7200, (void*)&variaveisTermicas, 4, &tarefa_salvar,0);
             }            
             
@@ -947,7 +948,7 @@ void loopRelogio(void * pvParameters)
             }
 
             //mostra a tela quando pressionado o botão
-            if(currentMillis - intervaloAtualizacaoTela >= 1000)
+            if(currentMillis - intervaloAtualizacaoTela >= 5000)
             {           
 
                 intervaloAtualizacaoTela = currentMillis;
@@ -1094,8 +1095,8 @@ void loopRelogio(void * pvParameters)
             }
 
 
-
-        if ((currentMillis - ledIndicativo) > 250) 
+        
+        if ((currentMillis - ledIndicativo) >= long(250)) 
         {
             //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
             if(digitalRead(LED_VERDE) == HIGH)

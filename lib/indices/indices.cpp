@@ -58,17 +58,14 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             erroRtc = false;
         }      
         //atualiza os sensores de temperatura
-        globoNegro.requestTemperatures(); delay(750);
-        globoNegro.requestTemperatures();delay(750);
-        float globo = globoNegro.getTempCByIndex(0);
-        bulboSeco.requestTemperatures(); delay(750);
-        float tbs = bulboSeco.getTempCByIndex(0);
-        if(tipoDeSensor) 
-        {
-            bulboUmido.requestTemperatures();
-            delay(750);
-        }
+        globoNegro.requestTemperatures();
+        globoNegro.requestTemperatures();
+        bulboSeco.requestTemperatures();
+        if(tipoDeSensor) bulboUmido.requestTemperatures();
+        delay(750);
         //variaveis temporárias para nao passar leituras erradas
+        float globo = globoNegro.getTempCByIndex(0);
+        float tbs = bulboSeco.getTempCByIndex(0);
         float tbu;
         if(tipoDeSensor) tbu = bulboUmido.getTempCByIndex(0);
         float pressao1 = bmp.readPressure();
