@@ -75,13 +75,40 @@ TaskHandle_t loop_configuracao;
  * 
  */
 TaskHandle_t tarefa_http;
+/**
+ * @brief indentificador taskHandle_d da terefa que salva os dados no cartão de memória
+ * 
+ */
+TaskHandle_t tarefa_salvar;
+/**
+ * @brief indentificador taskHandle_d da terefa que envia os dados para o servidor
+ * 
+ */
+TaskHandle_t tarefa_enviar_mqtt;
+/**
+ * @brief indentificador taskHandle_d da terefa que irá fazer a leitura dos sensores
+ * 
+ */
+TaskHandle_t tarefa_ler_variaveis;
+/**
+ * @brief tarefa que irá salvar os dados no cartão
+ * 
+ * @param pvParameters 
+ */
+void tarefaSalvarSd(void * pvParameters);
+/**
+ * @brief tarefa que irá enviar os dados no servidor
+ * 
+ * @param pvParameters 
+ */
+void tarefaEnviarMqtt(void * pvParameters);
 
 /**
- * @brief mantem a conexão com o servidor do mqtt ativa
+ * @brief faz a leitura dos sensores
  * 
  * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
  */
-void loopMqtt(void * pvParameters);
+void lerSensores(void * pvParameters);
 /**
  * @brief Faz a leitura do botão de interação, tornando mais inteligente e possibitando funções multi cliques
  * 
@@ -107,6 +134,11 @@ void tarefaHttp(void * pvParameters);
  */
 void tarefaSalvar(VariaveisTermicas variaveisTermicas);
 
+/**
+ * @brief Semáforo para evitar acionamento simutâneo da função atualizarVariaveis da biblioteca indices
+ * 
+ */
+SemaphoreHandle_t xSemaforo_atualizar_indices;
 
 /**********************************************************
  * CONFIGURACOES DOS SENSORES DE TEMPERATURA E PRESSÃO
@@ -328,6 +360,8 @@ uint8_t indice = 0;
 //variaveis para o botão de interação no loop de configuração
 //***********************************************************************
 
+
+
 /**
  * @brief Desativa o loopRelogio com um vtaskSuspend()
  * 
@@ -414,7 +448,7 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices);
  * @brief ajusta o intervalo de tela para 1 segundo afim de nao sobrecarregar a interface i2c
  * 
  */
-unsigned long intervaloAtualizacaoTela = 0;
+unsigned long intervaloAtualizacaoTela = 5000;
 /**
  * @brief ajusta o intervalo para salvar os dados no cartão de memória
  * 
@@ -429,12 +463,17 @@ unsigned long intervaloEnviarDados = 0;
  * @brief ajusto o intervalo para ler os dados dos sensores
  * 
  */
-unsigned long intervaloLerVariaveis = 5000;
+unsigned long intervaloLerVariaveis = 10000;
 /**
  * @brief ajusta o intervalo para piscar o led no pino 2, a fim de fornecer um feedback do funcionamento do loopRelogio
  * 
  */
-unsigned long ledIndicativo = 0;
+unsigned long ledIndicativo = 250;
+/**
+ * @brief ajusta o intervalo para piscar o led no pino 15, a fim de fornecer um feedback da conexão com o wi-fi e servidor
+ * 
+ */
+unsigned long ledIndicadorInternet = 0;
 /***************************************************
  * CONFIGURACOES DO MODO DEEP SLEEP
  * **************************************************
@@ -530,6 +569,33 @@ void tarefaSalvar(VariaveisTermicas variaveisTermicas)
     SPIFFS.end();
     SD.end();
 }
+void tarefaSalvarSd(void * pvParameters)
+{
+    VariaveisTermicas dadosLocais = *(VariaveisTermicas*)pvParameters;
+    tarefaSalvar(dadosLocais);
+    vTaskDelete(NULL);
+
+}
+void tarefaEnviarMqtt(void * pvParameters)
+{
+    VariaveisTermicas dadosLocais = *(VariaveisTermicas*)pvParameters;
+    enviarMqtt(configuracao, dadosLocais);    
+    vTaskDelete(NULL);
+}
+void lerSensores(void * pvParameters)
+{
+    
+    xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY);
+
+    dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+    if (dadosLocais.erroRtc)
+    {
+        esp_restart();
+    }  
+    xSemaphoreGive(xSemaforo_atualizar_indices);
+    vTaskDelete(NULL);
+}
+
 void setup()
 {
     ////Serial para debug
@@ -541,6 +607,9 @@ void setup()
     pinMode(BUTTON_PIN, INPUT);
     pinMode(LED_AMARELO, OUTPUT);
     digitalWrite(LED_VERDE, HIGH);
+
+    //iniciando os semáforos
+    xSemaforo_atualizar_indices = xSemaphoreCreateMutex();
 
     //inicializa a tela
     display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x64 
@@ -791,9 +860,8 @@ void setup()
     {   
         display.clearDisplay();
         display.setCursor(0,0);
-        display.print("TENTANDO WIFI!");
+        display.print("CONECTANDO AO WI-FI!");
         display.display();
-        vTaskDelay(1000/portTICK_PERIOD_MS);
         WiFi.disconnect(true);  //disconnect form wifi to set new wifi connection
         WiFi.mode(WIFI_STA); //init wifi mode
 
@@ -820,8 +888,8 @@ void setup()
             //Para reduzir o consumo de recursos, a função de se inscrever em tópicos mqtt foi desabilitada
             //client.subscribe(configuracao.mqttTopicoSub);
             internetEstado = true;
-            xTaskCreatePinnedToCore(loopMqtt, "loopMqtt", 4000, (void*)&configuracao, 1, &loop_mqtt, 0);
-            vTaskDelay(500/ portTICK_PERIOD_MS);
+            //xTaskCreatePinnedToCore(loopMqtt, "loopMqtt", 10000, (void*)&configuracao, 1, &loop_mqtt, 0);
+            //delay(500);
         }          
     }
     SPIFFS.end();
@@ -838,14 +906,20 @@ void setup()
         xTaskCreatePinnedToCore(loopBotao, "loopBotao", 4000, NULL, 4, &loop_configuracao,0);
         xTaskCreatePinnedToCore(loopConfiguracao, "loopConfiguracao", 20000, NULL, 5, &loop_configuracao,1);
         configuracoesNoBoot = false;
+        delay(240000);
     }
+     //Configura o canal 0 com frequência de 312500 Hz
+    sigmaDeltaSetup(0, 312500);
+    //Anexa o pino 18 (GPIO18) ao canal 0
+    sigmaDeltaAttachPin(15,0);
+    //inicializa o canal 0 para desativado
+    sigmaDeltaWrite(0, 0);
 }
     
 void loop()
 {
     //Cria uma varial que gerencia o controle de tempo no loop
     unsigned long currentMillis = millis();
-
     /**
      * @brief Faz a leitura dos sensores e cauculo dos índices a cada 10 segundos
      * 
@@ -853,9 +927,8 @@ void loop()
     if ((currentMillis - intervaloLerVariaveis) >= long(10000))
     {
         intervaloLerVariaveis = currentMillis;
-        dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 4, &tarefa_ler_variaveis,1);        
     }
-
     /**
      * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
      * 
@@ -863,19 +936,20 @@ void loop()
     if ((currentMillis - intervaloSalvarDados) >= long(configuracao.intervaloSalvar*1000))
     {
         intervaloSalvarDados = currentMillis;
-        tarefaSalvar(dadosLocais);
-    } 
 
+        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 2, &tarefa_salvar,0);
+    } 
     /**
      * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
      * 
      */
-    if (internetAtiva && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
+    if (internetEstado && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
     {
+        intervaloEnviarDados = currentMillis;
         //MQTT
         if (internetEstado)
         {
-            enviarMqtt(configuracao, dadosLocais);
+            xTaskCreatePinnedToCore(tarefaEnviarMqtt, "tarefaEnviarMqtt", 10000, (void*)&dadosLocais, 2, &tarefa_salvar,0);
         }
     }
 
@@ -894,15 +968,16 @@ void loop()
          * @brief essa instrução verifica se há erros nos em algum dos três sensores DS18B20 
          * e alterna para tela b se necessário;
          */
-        if (dadosLocais.erroSensorTbs && dadosLocais.erroSensorUmidade && dadosLocais.erroSensorUmidade)
+        xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY);   
+        if (dadosLocais.falhaSensores)
         {
             alternar = 'b';
         }else
         {
-            alternar = 'b';
+            alternar = 'a';
         }
 
-        // TELA A        
+        // TELA A  
         if(alternar == 'a')
         {           
             display.clearDisplay();
@@ -911,13 +986,13 @@ void loop()
                                                     ,dadosLocais.temperaturaDeBulboUmido
                                                     ,dadosLocais.temperaturaDeGlobo);
             display.setCursor(0,9);
-            display.printf("U1 %.0f%% U2 %.0f%% hPa %.0f",dadosLocais.umidadeRelativa1
+            display.printf("U1 %.0f%% U2 %.0f%% h %.0f",dadosLocais.umidadeRelativa1
                                                             ,dadosLocais.umidadeRelativa2
                                                             ,dadosLocais.pressao);
             display.setCursor(0,18);
             display.printf("A ITU %.0f ITGU %.0f",dadosLocais.itu1, dadosLocais.itgu1);
             display.setCursor(0,27);
-            display.printf("B ITU %.0f ITGU %.0f",dadosLocais.itu1, dadosLocais.itgu1);
+            display.printf("B ITU %.0f ITGU %.0f",dadosLocais.itu2, dadosLocais.itgu2);
             display.setCursor(0,36);
             display.printf("IBUTG1 %.0f IBUTG2 %.0f",dadosLocais.ibutg1, dadosLocais.ibutg2);
             display.setCursor(0,45);
@@ -928,15 +1003,15 @@ void loop()
             display.setTextSize(1);
             if (WiFi.status()==WL_CONNECTED)
             {
-                String internet;
+                display.print(WiFi.localIP());
+                display.setCursor(80,54);
                 if (internetEstado == true)
                 {
-                    internet = "ON!";
+                    display.print("ON!");
                 }else
                 {    
-                    internet = "OFF!";
+                    display.print("OFF!");
                 }
-                display.printf("%s %s", String(WiFi.localIP()).c_str(), internet.c_str());
             }else
             {
                 if (internetAtiva)
@@ -954,16 +1029,26 @@ void loop()
         else if(alternar == 'b')
         {   
             display.clearDisplay();
-            display.setTextSize(2);
             display.setCursor(0,0);
-            display.print("  FALHAS?");
-            display.setTextSize(1);
+            display.print("*FALHAS DE SENSORES*");
+            display.setCursor(0,10);
+            display.print("SENSOR PRESSAO");
             display.setCursor(0,20);
             display.print("Bulbo Seco ");
             display.setCursor(0,30);
             display.print("Bulbo Umido ");
             display.setCursor(0,40);
             display.print("Globo Negro ");
+            display.setCursor(0,50);
+            display.print("htu21d");
+            display.setCursor(84,10);
+            if (dadosLocais.erroSensorPressao) 
+            {
+                display.printf("FALHOU!");
+            }else
+            {
+                display.printf("- OK");
+            }
             display.setCursor(84,20);
             if (dadosLocais.erroSensorTbs) 
             {
@@ -988,8 +1073,17 @@ void loop()
             {
                 display.printf("- OK");
             }
+            display.setCursor(84,50);
+            if (dadosLocais.erroSensorUmidade2) 
+            {
+                display.printf("FALHOU!");
+            }else
+            {
+                display.printf("- OK");
+            }
             display.display();
         }  
+        xSemaphoreGive(xSemaforo_atualizar_indices);
     }
 
     //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
@@ -1005,26 +1099,35 @@ void loop()
         }
     }
 
-}
-//OloopMqtt() somente verifica e mantém a conexão com a rede wifi e o servidor mqtt
-void loopMqtt(void * pvParameters)
-{        
-    Configuracao config = *(Configuracao*)pvParameters;//Recebendo o struct de configuração a parti do parâmetro de entrada
-    //Esta função faz um loop mantendo a conexão com o servidor mqtt
-    //testa a conexão com a rede
-    for(;;)
-    {      
-            if (!client.connected())
+    if (internetEstado)
+    {
+        if ((currentMillis - ledIndicadorInternet) >= long(250)) 
+        {
+            ledIndicadorInternet = currentMillis;
+            if(digitalRead(LED_AMARELO) == HIGH)
             {
-                internetEstado = false;
-                reconnect(config);
+                sigmaDeltaWrite(0, 0);
             }else
             {
-                client.loop();
-            }
-        
-        vTaskDelay(10/ portTICK_PERIOD_MS);
+                sigmaDeltaWrite(0, 255);
+            }           
+        }
     }
+
+    if (internetAtiva)
+    {
+        if (!client.connected())
+        {
+            internetEstado = false;
+            reconnect(configuracao);
+        }else
+        {
+            client.loop();
+        }
+    }
+    
+    
+
 }
 void loopBotao(void * pvParameters)
 {
@@ -1318,9 +1421,12 @@ void reconnect(Configuracao config)
     while(WiFi.status() != WL_CONNECTED) 
     {
         WiFi.reconnect();
+        digitalWrite(LED_AMARELO, HIGH);
         vTaskDelay(10000/ portTICK_PERIOD_MS);
     }
-	
+
+	client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
+    client.setCallback(callback);
     client.setCallback(callback);
 	if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
 	{

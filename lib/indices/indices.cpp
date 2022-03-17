@@ -58,6 +58,9 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             erroRtc = false;
         }      
         //atualiza os sensores de temperatura
+        
+        globoNegro.requestTemperatures();
+        globoNegro.requestTemperatures();
         globoNegro.requestTemperatures();
         globoNegro.requestTemperatures();
         bulboSeco.requestTemperatures();
@@ -111,22 +114,23 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
         float umidade = htu21d.readHumidity();
         if(umidade == 998.0)
         {
-            erroSensorUmidade = true;
+            erroSensorUmidade2 = true;
         }else
         {
             umidadeRelativa2 = (umidade > 98)? 98 : umidade;
-            erroSensorUmidade = false;
+            erroSensorUmidade2 = false;
         }
         
         
     
         //Calculos dos indices termicos
-        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroRtc)
+        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroSensorUmidade2 && !erroRtc)
         {
             digitalWrite(LED_VERMELHO, LOW);
+            falhaSensores = false;
 
                      
-            umidadeRelativa1 = calculaUmidadeRelativa(tbs, tbu, pressao1);
+            umidadeRelativa1 = calculaUmidadeRelativa(tbs, tbu, pressao);
             
 
             itu1 = calculaItu(animal, tipoDeSensor, umidadeRelativa1);
@@ -193,6 +197,7 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             } 
         }else
         {
+            falhaSensores = true;
             digitalWrite(LED_VERMELHO, HIGH);
         }   
 }

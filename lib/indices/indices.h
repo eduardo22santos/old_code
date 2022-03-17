@@ -107,6 +107,8 @@ struct VariaveisTermicas
     float orvalhoMin;
     // reconhece o erro no sensor de bulbo umido
     bool erroSensorUmidade = false;
+    // reconhece o erro no sensor dhtu21d
+    bool erroSensorUmidade2 = false;
      // reconhece o erro no Sensor de bulbo seco
     bool erroSensorTbs = false;
     // reconhece o erro no Sensor de globo
@@ -115,6 +117,8 @@ struct VariaveisTermicas
     bool erroSensorPressao = false;
     // reconhece o erro no rtc
     bool erroRtc = false;
+    // indica erro em algum sensor
+    bool falhaSensores = false;
 
     /**
      * @brief calcula a umidade relativa a partir do bulbo umido

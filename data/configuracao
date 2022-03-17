@@ -1,10 +1,10 @@
 {
-  "wifi_ssid": "eduroam",
+  "wifi_ssid": "EDUARDO",
   "wifi_senha": "16r04o18b",
   "wifi_status": true,
   "eduroam_login": "eduardo22santos@ufs.br",
   "eduroam_senha": "Edu.gtx66",
-  "eduroam_status": true,
+  "eduroam_status": false,
   "mqtt_host": "mqtt3.thingspeak.com",
   "mqtt_porta": 1883,
   "mqtt_senha": "WTGuR8JVoxPDu8FJTHZx5k0p",
