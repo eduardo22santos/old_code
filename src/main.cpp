@@ -426,7 +426,7 @@ String atualizarRtc(bool wifiLigado);
  * @brief Reestabelece a conexão com o servidor mqtt
  * 
  */
-void reconnect();
+void reconnect(Configuracao config);
 /**
  * @brief Prepara as os valores de leitura das variáveis climaticas em uma string com formato json, e envia no tópico mqtt especificado no arquivo de configuração
  * 
@@ -916,10 +916,7 @@ void loopRelogio(void * pvParameters)
             if ((currentMillis - intervaloLerVariaveis) >= long(5000))
             {
                 intervaloLerVariaveis = currentMillis;
-                globoNegro.requestTemperatures();
-                bulboSeco.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+                dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, config.tipoAnimal, LED_VERMELHO, bmp, config.sensorBulboUmido, relogio);
                 variaveisTermicas = dadosLocais;
             } 
             
@@ -1284,7 +1281,7 @@ void loopMqtt(void * pvParameters)
             if (!client.connected())
             {
                 internetEstado = false;
-                reconnect();
+                reconnect(config);
             }else
             {
                 client.loop();
@@ -1581,7 +1578,7 @@ void desativaLoopRelogio()
     botao = true;
     detachInterrupt(digitalPinToInterrupt(BUTTON_PIN));
 }
-void reconnect()
+void reconnect(Configuracao config)
 {
 
     while(WiFi.status() != WL_CONNECTED) 
@@ -1592,7 +1589,7 @@ void reconnect()
 	while (!client.connected())
     {
         client.setCallback(callback);
-		if (client.connect(configuracao.mqttName,configuracao.mqttUser, configuracao.mqttSenha))
+		if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
 		{
             internetEstado = true;
             break;          
