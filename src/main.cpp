@@ -66,11 +66,6 @@ TaskHandle_t loop_mqtt;
  */
 TaskHandle_t loop_botao;
 /**
- * @brief indentificador taskHandle_d da terefa loopRelogio
- * 
- */
-TaskHandle_t loop_relogio;
-/**
  * @brief indentificador taskHandle_d da terefa loopConfiguracao
  * 
  */
@@ -80,16 +75,6 @@ TaskHandle_t loop_configuracao;
  * 
  */
 TaskHandle_t tarefa_http;
-/**
- * @brief indentificador taskHandle_d da terefa tarefaSalvar
- * 
- */
-TaskHandle_t tarefa_salvar;
-/**
- * @brief identificador da tarefa que faz as interações após o click no botão de interação
- * 
- */
-TaskHandle_t tarefa_botao;
 
 /**
  * @brief mantem a conexão com o servidor do mqtt ativa
@@ -103,12 +88,6 @@ void loopMqtt(void * pvParameters);
  * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
  */
 void loopBotao(void * pvParameters);
-/**
- * @brief Super loop que faz todo o controle das tarefas do sistema, contando o tempo para iniciar cada tarefa
- * 
- * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
- */
-void loopRelogio(void * pvParameters);
 /**
  * @brief Abre uma interface de configuração, possibilitando atualizar o horario no rtc, mudar itu e habilitar o envio de dados na plataforma
  * 
@@ -124,20 +103,10 @@ void tarefaHttp(void * pvParameters);
 /**
  * @brief Salva as leituras dos sensores no cartão de memória escrevendo os dados em um arquivo .csv
  * 
- * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
+ * @param variaveisTermicas objeto contendo os dados ambientais
  */
-void tarefaSalvar(void * pvParameters);
-/**
- * @brief tarefa que fará toda a rotina do botão de interação
- * 
- * @param pvParameters 
- */
-void tarefaBotao(void * pvParameters);
-/**
- * @brief Semáforo para evitar acionamento simutâneo da função atualizarVariaveis da biblioteca indices
- * 
- */
-SemaphoreHandle_t xSemaforo_atualizar_indices;
+void tarefaSalvar(VariaveisTermicas variaveisTermicas);
+
 
 /**********************************************************
  * CONFIGURACOES DOS SENSORES DE TEMPERATURA E PRESSÃO
@@ -217,7 +186,7 @@ String arquivoDatalog_txt = "/datalog.csv";
  * @brief cabeçalho do arquivo datalog, contendo o identificador de cada coluna
  * 
  */
-String datalogCabecalho = "data,horario,umidade,globo,tbs,tbu,itu,itgu,orvalho,Pa,falha";
+String datalogCabecalho = "data,horario,umidade1,umidade2,globo,tbs,tbu,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,falha";
 /**
  * @brief Nome do arquivo que salva os valores de máximas e mínimas diários
  * 
@@ -348,7 +317,7 @@ void click(Button2& btn);
  * 
  * @param btn 
  */
-void longClick(Button2& btn);
+void doubleClick(Button2& btn);
 /**
  * @brief Utilizado para indicar a posião da seta na tela
  * 
@@ -425,13 +394,14 @@ String atualizarRtc(bool wifiLigado);
 /**
  * @brief Reestabelece a conexão com o servidor mqtt
  * 
+ * @param config objeto contentndo os as variáveis de configuração do sistema
  */
-void reconnect();
+void reconnect(Configuracao config);
 /**
  * @brief Prepara as os valores de leitura das variáveis climaticas em uma string com formato json, e envia no tópico mqtt especificado no arquivo de configuração
  * 
- * @param config Objeto contendo as informações de configuração do aparelho
- * @param indices Objeto para obter os valores das variáveis climaticas
+ * @param config objeto contentndo os as variáveis de configuração do sistema
+ * @param indices objeto contendo os valores das variáveis de ambiente
  */
 void enviarMqtt(Configuracao config, VariaveisTermicas indices);
 
@@ -440,11 +410,6 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices);
  * **************************************************
  */
 
-/**
- * @brief ajusta o intervalo para a funcao de reconectar o wifi
- * 
- */
-unsigned long intervaloWifi = 0;
 /**
  * @brief ajusta o intervalo de tela para 1 segundo afim de nao sobrecarregar a interface i2c
  * 
@@ -464,19 +429,12 @@ unsigned long intervaloEnviarDados = 0;
  * @brief ajusto o intervalo para ler os dados dos sensores
  * 
  */
-unsigned long intervaloLerVariaveis = 0;
+unsigned long intervaloLerVariaveis = 5000;
 /**
  * @brief ajusta o intervalo para piscar o led no pino 2, a fim de fornecer um feedback do funcionamento do loopRelogio
  * 
  */
 unsigned long ledIndicativo = 0;
-/**
- * @brief Quando true, o sistema entra no modo de interação com o usuário
- * 
- */
-bool botao = false;
-
-
 /***************************************************
  * CONFIGURACOES DO MODO DEEP SLEEP
  * **************************************************
@@ -512,12 +470,12 @@ void tarefaHttp(void * pvParameters)
     char dataArquivo[11] = "DD/MM/YYYY";
     doc["data"] = variaveisTermicas.horario.toString(dataArquivo);
     doc["horario"] = variaveisTermicas.horario.toString(horarioArquivo);
-    doc["itu"] = variaveisTermicas.itu;
-    doc["itgu"] = variaveisTermicas.itgu;
-    doc["orvalho"] = variaveisTermicas.pontoDeOrvalho;
+    doc["itu"] = variaveisTermicas.itu1;
+    doc["itgu"] = variaveisTermicas.itgu1;
+    doc["orvalho"] = variaveisTermicas.pontoDeOrvalho1;
     doc["tbs"] = variaveisTermicas.temperaturaDeBulboSeco;
     doc["bulboUmido"] = variaveisTermicas.temperaturaDeBulboUmido;
-    doc["umidade"] = variaveisTermicas.umidadeRelativa;
+    doc["umidade"] = variaveisTermicas.umidadeRelativa1;
     doc["tg"] = variaveisTermicas.temperaturaDeGlobo;
     serializeJson(doc, enviar);
     //enviando o json string via post http
@@ -527,10 +485,8 @@ void tarefaHttp(void * pvParameters)
     http.end();
     vTaskDelete(NULL);
 }
-void tarefaSalvar(void * pvParameters)
+void tarefaSalvar(VariaveisTermicas variaveisTermicas)
 { 
-    VariaveisTermicas variaveisTermicas = *(VariaveisTermicas*)pvParameters;
-
     if (!SD.begin())
     {
         ESP.restart();
@@ -543,15 +499,24 @@ void tarefaSalvar(void * pvParameters)
     }
     char horarioArquivo[9] = "hh:mm:ss";
     char dataArquivo[11] = "DD/MM/YYYY";
+
+    //"data,horario,umidade1,umidade2,globo,tbs,tbu,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,falha";
+
     String datalog = String(variaveisTermicas.horario.toString(dataArquivo)) + "," + 
         String(variaveisTermicas.horario.toString(horarioArquivo)) + "," +
-        String(variaveisTermicas.umidadeRelativa) + "," + 
-        String(variaveisTermicas.temperaturaDeGlobo) + "," + 
+        String(variaveisTermicas.umidadeRelativa1) + "," + 
+        String(variaveisTermicas.umidadeRelativa2) + "," + 
+        String(variaveisTermicas.temperaturaDeGlobo) + "," +
         String(variaveisTermicas.temperaturaDeBulboSeco) + "," +
         String(variaveisTermicas.temperaturaDeBulboUmido) + "," +
-        String(variaveisTermicas.itu) + "," +
-        String(variaveisTermicas.itgu) + "," +
-        String(variaveisTermicas.pontoDeOrvalho) + "," +
+        String(variaveisTermicas.itu1) + "," +
+        String(variaveisTermicas.itu2) + "," +
+        String(variaveisTermicas.itgu1) + "," +
+        String(variaveisTermicas.itgu2) + "," +
+        String(variaveisTermicas.ibutg1) + "," +
+        String(variaveisTermicas.ibutg2) + "," +
+        String(variaveisTermicas.pontoDeOrvalho1) + "," +
+        String(variaveisTermicas.pontoDeOrvalho2) + "," +
         String(variaveisTermicas.pressao) + "," +
         String(falha);
     //Salva no arquivo datalog
@@ -560,12 +525,10 @@ void tarefaSalvar(void * pvParameters)
     appendFile(SD, String(variaveisTermicas.horario.toString(dataArquivosDiarios)), datalog);
     //apaga o arquivo json de maximas e minimas
     if(!SPIFFS.begin()) esp_restart();
-    SPIFFS.remove(arquivoMaxMinJson);
+    SD.remove(arquivoMaxMinJson);
     salvarMaxMin(variaveisTermicas, arquivoMaxMinJson); //cria um novo arquivo json de maximas e minimas
     SPIFFS.end();
-    SD.end(); 
-    
-    vTaskDelete(NULL);
+    SD.end();
 }
 void setup()
 {
@@ -680,11 +643,7 @@ void setup()
                   Adafruit_BMP280::FILTER_X16,      /* Filtering. */
                   Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
     
-    //criando a filas queue para tranferir o objeto variaveisTermicas entre as tarefas
-    //variaveisDeAmbiente = xQueueCreate(1,sizeof(variaveisTermicas));
 
-    //iniciando os semáforos
-    xSemaforo_atualizar_indices = xSemaphoreCreateMutex();
 
     //Atualiza horario do aparelho e define o alarme
     DateTime tempoAtual = relogio.now();
@@ -879,424 +838,191 @@ void setup()
         xTaskCreatePinnedToCore(loopBotao, "loopBotao", 4000, NULL, 4, &loop_configuracao,0);
         xTaskCreatePinnedToCore(loopConfiguracao, "loopConfiguracao", 20000, NULL, 5, &loop_configuracao,1);
         configuracoesNoBoot = false;
-    }else
-    {
-        xTaskCreatePinnedToCore(loopRelogio, "loopRelogio", 42000, (void*)&configuracao, 1, &loop_relogio,1);
-        vTaskDelay(500/ portTICK_PERIOD_MS);
     }
 }
     
-void loop(){vTaskDelete(NULL);}
-
-void loopRelogio(void * pvParameters)
+void loop()
 {
-    Configuracao config = *(Configuracao*)pvParameters;//Recebendo o struct de configuração a parti do parâmetro de entrada
-    while (true)
+    //Cria uma varial que gerencia o controle de tempo no loop
+    unsigned long currentMillis = millis();
+
+    /**
+     * @brief Faz a leitura dos sensores e cauculo dos índices a cada 10 segundos
+     * 
+     */
+    if ((currentMillis - intervaloLerVariaveis) >= long(10000))
     {
+        intervaloLerVariaveis = currentMillis;
+        dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+    }
 
-            //Cria uma varial que gerencia o controle de tempo no loop
-            unsigned long currentMillis = millis(); 
-            VariaveisTermicas variaveisTermicas;
+    /**
+     * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
+     * 
+     */
+    if ((currentMillis - intervaloSalvarDados) >= long(configuracao.intervaloSalvar*1000))
+    {
+        intervaloSalvarDados = currentMillis;
+        tarefaSalvar(dadosLocais);
+    } 
 
-            /**
-             * @brief Quando o botão de interação é prescionado,
-             * esse trecho suspende o loopMqtt se estiver funcionando
-             * cria a tarefa do loopBotao, e suspende o loopRelogio temporariamente 
-             */
-            if (botao)
-            {
-                if (config.mqttStatus)
-                {
-                    vTaskSuspend(loop_mqtt); //suspendendo o loopMqtt temporariamente 
-                }
-                xTaskCreatePinnedToCore(tarefaBotao, "tarefaBotao", 10000, (void*)&configuracao, 5, &tarefa_botao,1);
-                vTaskSuspend(loop_relogio);
-            }
-
-            if ((currentMillis - intervaloLerVariaveis) >= long(5000))
-            {
-                intervaloLerVariaveis = currentMillis;
-                globoNegro.requestTemperatures();
-                bulboSeco.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-                variaveisTermicas = dadosLocais;
-            } 
-            
-            //Quando atinge o tempo definido, cria a tarefa para salvar os dados no cartão
-            if ((currentMillis - intervaloSalvarDados) >= (config.intervaloSalvar*1000))
-            {
-                intervaloSalvarDados = currentMillis;
-                xTaskCreatePinnedToCore(tarefaSalvar, "tarefa_Salvar", 7200, (void*)&variaveisTermicas, 4, &tarefa_salvar,0);
-            }            
-            
-            if ((currentMillis - intervaloEnviarDados) >= (config.intervaloOnline*1000))
-            {
-                intervaloEnviarDados = currentMillis;
-                if (config.plataforma == conftermApi)
-                {   
-                    //HTTP 
-                    if (WiFi.status() == WL_CONNECTED)
-                    {
-                        xTaskCreatePinnedToCore(tarefaHttp, "tarefa_http", 7500, (void*)&variaveisTermicas, 2, &tarefa_http,0);
-                    }
-                }else
-                {
-                    //MQTT
-                    enviarMqtt(config, variaveisTermicas);
-                }
-            }
-
-            //mostra a tela quando pressionado o botão
-            if(currentMillis - intervaloAtualizacaoTela >= 5000)
-            {           
-
-                intervaloAtualizacaoTela = currentMillis;
-                
-                    if(alternar == 'a')
-                    {           
-                        display.clearDisplay();
-                        display.setTextSize(2);
-                        display.setCursor(0,0);
-                        display.printf("%.1fC",variaveisTermicas.temperaturaDeBulboSeco);
-                        display.setCursor(92,0);
-                        display.printf("%.0f%%",variaveisTermicas.umidadeRelativa);
-                        display.setTextSize(1);
-                        display.setCursor(0,20);
-                        display.print("GloboNegro");
-                        display.setCursor(0,30);
-                        display.print("BulboUmido");
-                        display.setCursor(0,40);
-                        display.print("ITGU");
-                        display.setCursor(0,50);
-                        if (config.tipoAnimal == geral)
-                        {
-                            display.print("ItuGeral");
-                        }else if (config.tipoAnimal == bovino)
-                        {
-                            display.print("ItuBovino");
-                        }        
-                        display.setCursor(78,20);
-                        display.printf("%.2fC",variaveisTermicas.temperaturaDeGlobo);
-                        display.setCursor(78, 30);
-                        display.printf("%.2fC",variaveisTermicas.temperaturaDeBulboUmido);
-                        display.setCursor(78, 40);
-                        display.print(variaveisTermicas.itgu);
-                        display.setCursor(78,50);
-                        display.print(variaveisTermicas.itu);
-                        display.display();
-                    //mostra tela de maximas e minimas
-                    }else if (alternar == 'c')
-                    {
-                        display.clearDisplay();
-                        display.setTextSize(2);
-                        display.setCursor(0,0);
-                        display.print("   +  M  -");
-                        display.setTextSize(1);
-                        display.setCursor(0,20);
-                        display.print("TempC");
-                        display.setCursor(0,30);
-                        display.print("U%");
-                        display.setCursor(0,40);
-                        display.print("ITGU");
-                        display.setCursor(0,50);
-                        display.print("ITU");
-                        display.setCursor(37,20);
-                        display.printf("%.0f    %.0f    %.0f", variaveisTermicas.temperaturaMax, (variaveisTermicas.temperaturaMax + variaveisTermicas.temperaturaMin)/2, variaveisTermicas.temperaturaMin);
-                        display.setCursor(37,30);
-                        display.printf("%.0f%%   %.0f%%   %.0f%%", variaveisTermicas.umidadeMax, (variaveisTermicas.umidadeMax+variaveisTermicas.umidadeMin)/2,variaveisTermicas.umidadeMin);
-                        display.setCursor(37,40);
-                        display.printf("%.0f    %.0f    %.0f",variaveisTermicas.itguMax, (variaveisTermicas.itguMax+variaveisTermicas.itguMin)/2, variaveisTermicas.itguMin);
-                        display.setCursor(37,50);
-                        display.printf("%.0f    %.0f    %.0f", variaveisTermicas.ituMax, (variaveisTermicas.ituMax + variaveisTermicas.ituMin)/2, variaveisTermicas.ituMin);
-                        display.display();
-                        //Mostra o relogio e definições de conectividade
-                    }else if(alternar == 'b')
-                    {   
-                        DateTime tempoAtual = relogio.now();
-                        display.clearDisplay();
-                        display.setTextSize(2);
-                        display.setCursor(10, 0);
-                        char horarioArquivo[9] = "hh:mm:ss";
-                        display.print(tempoAtual.toString(horarioArquivo));
-                        display.setTextSize(1);
-                        display.setCursor(0,20);
-                        if (WiFi.status()==WL_CONNECTED)
-                        {
-                            display.print(WiFi.localIP());
-                        }else
-                        {
-                            if (internetAtiva)
-                            {
-                                display.print("TENTANDO CONEXAO!!!");
-                            }else
-                            {                
-                                display.print("WIFI DESLIGADO!");
-                            }
-                        }
-                        display.setCursor(0, 30);
-                        if (config.plataforma == conftermApi)
-                        {
-                            display.printf("HttpRetorno=%.0i\n%s", httpCodigoRetorno, httpHorario.c_str());
-                        }
-                        else if (internetEstado == true)
-                        {
-                            display.print("INTERNET ON!");
-                        }else
-                        {    
-                            display.print("INTERNET OFF!");
-                        }
-                        display.setTextSize(2);         
-                        display.setCursor(0, 48);
-                        char dataArquivo[11] = "DD/MM/YYYY";
-                        display.print( tempoAtual.toString(dataArquivo));
-                        display.display();  
-                        display.setTextSize(1);
-                    //mostra o estado dos sensores
-                    }else if(alternar == 'd')
-                    {   
-                        display.clearDisplay();
-                        display.setTextSize(2);
-                        display.setCursor(0,0);
-                        display.print("  FALHAS?");
-                        display.setTextSize(1);
-                        display.setCursor(0,20);
-                        display.print("Bulbo Seco ");
-                        display.setCursor(0,30);
-                        display.print("Bulbo Umido ");
-                        display.setCursor(0,40);
-                        display.print("Globo Negro ");
-                        display.setCursor(84,20);
-                        if (variaveisTermicas.erroSensorTbs) 
-                        {
-                            display.printf("FALHOU!");
-                        }else
-                        {
-                            display.printf("- OK");
-                        }
-                        display.setCursor(84,30);
-                        if (variaveisTermicas.erroSensorUmidade) 
-                        {
-                            display.printf("FALHOU!");
-                        }else
-                        {
-                            display.printf("- OK");
-                        }
-                        display.setCursor(84,40);
-                        if (variaveisTermicas.erroSensorGlobo) 
-                        {
-                            display.printf("FALHOU!");
-                        }else
-                        {
-                            display.printf("- OK");
-                        }
-                        display.display();
-                    }  
-            }
-
-
-        
-        if ((currentMillis - ledIndicativo) >= long(250)) 
+    /**
+     * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
+     * 
+     */
+    if (internetAtiva && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
+    {
+        //MQTT
+        if (internetEstado)
         {
-            //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
-            if(digitalRead(LED_VERDE) == HIGH)
+            enviarMqtt(configuracao, dadosLocais);
+        }
+    }
+
+    /**
+     * @brief cria as telas para visualização do feedback do dispositivo
+     * sendo duas telas
+     *  a --> valores das leituras, status de conexão de wi-fi e servidor, e status do rtc
+     *  b --> Feedback das falhas dos sensores
+     */
+    if(currentMillis - intervaloAtualizacaoTela >= long(1000))
+    {           
+
+        intervaloAtualizacaoTela = currentMillis;
+
+        /**
+         * @brief essa instrução verifica se há erros nos em algum dos três sensores DS18B20 
+         * e alterna para tela b se necessário;
+         */
+        if (dadosLocais.erroSensorTbs && dadosLocais.erroSensorUmidade && dadosLocais.erroSensorUmidade)
+        {
+            alternar = 'b';
+        }else
+        {
+            alternar = 'b';
+        }
+
+        // TELA A        
+        if(alternar == 'a')
+        {           
+            display.clearDisplay();
+            display.setCursor(0,0);
+            display.printf("BS %.0f BU %.0f GN %.0f",dadosLocais.temperaturaDeBulboSeco
+                                                    ,dadosLocais.temperaturaDeBulboUmido
+                                                    ,dadosLocais.temperaturaDeGlobo);
+            display.setCursor(0,9);
+            display.printf("U1 %.0f%% U2 %.0f%% hPa %.0f",dadosLocais.umidadeRelativa1
+                                                            ,dadosLocais.umidadeRelativa2
+                                                            ,dadosLocais.pressao);
+            display.setCursor(0,18);
+            display.printf("A ITU %.0f ITGU %.0f",dadosLocais.itu1, dadosLocais.itgu1);
+            display.setCursor(0,27);
+            display.printf("B ITU %.0f ITGU %.0f",dadosLocais.itu1, dadosLocais.itgu1);
+            display.setCursor(0,36);
+            display.printf("IBUTG1 %.0f IBUTG2 %.0f",dadosLocais.ibutg1, dadosLocais.ibutg2);
+            display.setCursor(0,45);
+            DateTime tempoAtual = relogio.now();
+            char horarioArquivo[21] = " hh:mm:ss DD/MM/YYYY";
+            display.print(tempoAtual.toString(horarioArquivo));
+            display.setCursor(0,54);
+            display.setTextSize(1);
+            if (WiFi.status()==WL_CONNECTED)
             {
-                digitalWrite(LED_VERDE, LOW);
+                String internet;
+                if (internetEstado == true)
+                {
+                    internet = "ON!";
+                }else
+                {    
+                    internet = "OFF!";
+                }
+                display.printf("%s %s", String(WiFi.localIP()).c_str(), internet.c_str());
             }else
             {
-                digitalWrite(LED_VERDE, HIGH);
-            }
-            ledIndicativo = currentMillis;
-        }
-        
-        //pausa o loop
-        vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-}
-void tarefaBotao(void * pvParameters)
-{
-    Configuracao config = *(Configuracao*)pvParameters;//Recebendo o struct de configuração a parti do parâmetro de entrada
-    
-                xTaskCreatePinnedToCore(loopBotao, "loopBotao", 4000, NULL, 1, &loop_botao,0);
-                vTaskDelay(500 / portTICK_PERIOD_MS);
-                unsigned long tempoParaSair = millis(); //tempo para sair do loop de 20 segundos
-                while(true)
+                if (internetAtiva)
                 {
-                    display.clearDisplay();
-                    display.setCursor(0,0);
-                    display.print("  SELECIONE A TELA  ");
-                    display.setCursor(0,10);
-                    if (indice == 0)
-                    {
-                        display.print("-> LEITURAS");
-                    }else
-                    {
-                        display.print("   LEITURAS");
-                    }
-                    display.setCursor(0,20);
-                    if (indice == 1)
-                    {
-                        display.print("-> RELOGIO E INTERNET");
-                    }else
-                    {
-                        display.print("   RELOGIO E INTERNET");
-                    }
-                    display.setCursor(0,30);
-                    if (indice == 2)
-                    {
-                        display.print("-> MAXIMAS E MINIMAS");
-                    }else
-                    {
-                        display.print("   MAXIMAS E MINIMAS");
-                    }
-                    display.setCursor(0,40);
-                    if (indice == 3)
-                    {
-                        display.print("-> FALHAS DE SENSORES");
-                    }else
-                    {
-                        display.print("   FALHAS DE SENSORES");
-                    }
-                    display.setCursor(0,50);
-                    if (indice == 4)
-                    {
-                        display.print("-> CONFIGURACOES");
-                    }else
-                    {
-                        display.print("   CONFIGURACOES");
-                    }
-                    display.display();
-                    //reconhece o duplo clique e altera as variaveis booleanas para ativar funcoes
-                    if(ativarFuncao)
-                    {
-                        if(indice == 0)
-                        {
-                            redefinir();
-                            alternar = 'a';
-                            vTaskDelete(loop_botao);
-                            vTaskDelay(500/portTICK_PERIOD_MS);
-                            if (config.mqttStatus)
-                            {                                
-                                vTaskResume(loop_mqtt);                                
-                            }
-                            display.clearDisplay();
-                            display.setCursor(0,0);
-                            display.print("OK");
-                            display.display();
-                            botao = false;
-                            attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), desativaLoopRelogio, RISING);
-                            vTaskResume(loop_relogio);
-                            break;
-                        }else if(indice == 1)
-                        {
-                            redefinir();
-                            alternar = 'b';
-                            vTaskDelete(loop_botao);
-                            vTaskDelay(500/portTICK_PERIOD_MS);
-                            if (config.mqttStatus)
-                            {                                
-                                vTaskResume(loop_mqtt);                                
-                            }
-                            display.clearDisplay();
-                            display.setCursor(0,0);
-                            display.print("OK");
-                            display.display();
-                            botao = false;
-                            attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), desativaLoopRelogio, RISING);
-                            vTaskResume(loop_relogio);
-                            break;
-                        }else if(indice == 2)
-                        {
-                            redefinir();
-                            alternar = 'c';
-                            vTaskDelete(loop_botao);
-                            vTaskDelay(500/portTICK_PERIOD_MS);
-                            if (config.mqttStatus)
-                            {                                
-                                vTaskResume(loop_mqtt);                                
-                            }
-                            display.clearDisplay();
-                            display.setCursor(0,0);
-                            display.print("OK");
-                            display.display();
-                            botao = false;
-                            attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), desativaLoopRelogio, RISING);
-                            vTaskResume(loop_relogio);
-                            break;
-                        }else if(indice == 3)
-                        {
-                            redefinir();
-                            alternar = 'd';
-                            vTaskDelete(loop_botao);
-                            vTaskDelay(500/portTICK_PERIOD_MS);
-                            if (config.mqttStatus)
-                            {                                
-                                vTaskResume(loop_mqtt);
-                            }
-                            display.clearDisplay();
-                            display.setCursor(0,0);
-                            display.print("OK");
-                            display.display();
-                            botao = false;
-                            attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), desativaLoopRelogio, RISING);
-                            vTaskResume(loop_relogio);
-                            break;
-                        }else
-                        {
-                            //reinicia a placa para iniciar no modo de configuracao
-                            configuracoesNoBoot = true;
-                            esp_sleep_enable_timer_wakeup(uS_TO_S_FACTOR);
-                            esp_deep_sleep_start(); //força o ESP32 entrar em modo SLEEP por um segundo
-                        }
-                    }
-                    if(indice > 4) indice = 0;
-                    if((millis() - tempoParaSair) > 20000)
-                    {
-                        redefinir();
-                        vTaskDelete(loop_botao);
-                        vTaskDelay(500/portTICK_PERIOD_MS);
-                        if (config.mqttStatus)
-                        {
-                            vTaskResume(loop_mqtt);
-                        }
-                        botao = false;
-                        attachInterrupt(digitalPinToInterrupt(BUTTON_PIN), desativaLoopRelogio, RISING);
-                        vTaskResume(loop_relogio);
-                        break;
-                    }
-                    vTaskDelay(10/ portTICK_PERIOD_MS);
+                    display.print("TENTANDO CONEXAO!!!");
+                }else
+                {                
+                    display.print("WIFI DESLIGADO!");
                 }
-    vTaskDelay(10/ portTICK_PERIOD_MS);
-    vTaskDelete(NULL);
-    
+            }
+            display.display();  
+            
+        }
+        //TELA B
+        else if(alternar == 'b')
+        {   
+            display.clearDisplay();
+            display.setTextSize(2);
+            display.setCursor(0,0);
+            display.print("  FALHAS?");
+            display.setTextSize(1);
+            display.setCursor(0,20);
+            display.print("Bulbo Seco ");
+            display.setCursor(0,30);
+            display.print("Bulbo Umido ");
+            display.setCursor(0,40);
+            display.print("Globo Negro ");
+            display.setCursor(84,20);
+            if (dadosLocais.erroSensorTbs) 
+            {
+                display.printf("FALHOU!");
+            }else
+            {
+                display.printf("- OK");
+            }
+            display.setCursor(84,30);
+            if (dadosLocais.erroSensorUmidade) 
+            {
+                display.printf("FALHOU!");
+            }else
+            {
+                display.printf("- OK");
+            }
+            display.setCursor(84,40);
+            if (dadosLocais.erroSensorGlobo) 
+            {
+                display.printf("FALHOU!");
+            }else
+            {
+                display.printf("- OK");
+            }
+            display.display();
+        }  
+    }
+
+    //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
+    if ((currentMillis - ledIndicativo) >= long(250)) 
+    {
+        ledIndicativo = currentMillis;
+        if(digitalRead(LED_VERDE) == HIGH)
+        {
+            digitalWrite(LED_VERDE, LOW);
+        }else
+        {
+            digitalWrite(LED_VERDE, HIGH);
+        }
+    }
+
 }
 //OloopMqtt() somente verifica e mantém a conexão com a rede wifi e o servidor mqtt
 void loopMqtt(void * pvParameters)
 {        
     Configuracao config = *(Configuracao*)pvParameters;//Recebendo o struct de configuração a parti do parâmetro de entrada
     //Esta função faz um loop mantendo a conexão com o servidor mqtt
-    //no caso do http, faz os envios e testa a conexão wifi
     //testa a conexão com a rede
     for(;;)
-    {
-        if (config.plataforma != conftermApi)
-        {      
+    {      
             if (!client.connected())
             {
                 internetEstado = false;
-                reconnect();
+                reconnect(config);
             }else
             {
                 client.loop();
             }
-        }else
-        {
-            while(WiFi.status() != WL_CONNECTED) 
-            {
-                WiFi.reconnect();
-                vTaskDelay(10000/ portTICK_PERIOD_MS);
-            }
-        }
+        
         vTaskDelay(10/ portTICK_PERIOD_MS);
     }
 }
@@ -1304,8 +1030,8 @@ void loopBotao(void * pvParameters)
 {
     //INICIANDO CONFIGURACAO DO BOTAO
     button.setClickHandler(click);
-    button.setLongClickHandler(longClick);
-    //button.setDoubleClickHandler(doubleClick);
+    //button.setLongClickHandler(longClick);
+    button.setDoubleClickHandler(doubleClick);
     for(;;)
     {
         button.loop();
@@ -1316,6 +1042,11 @@ void loopConfiguracao(void * pvParameters)
 {
     for(;;)
     {
+        if (millis() >= long(60000))
+        {
+            esp_restart();
+        }
+        
         display.clearDisplay();
         display.setTextSize(2);
         display.setCursor(16,0);
@@ -1388,7 +1119,7 @@ void loopConfiguracao(void * pvParameters)
             display.print(atualizarRtc(false));
             display.display();
             vTaskDelay(5000/portTICK_PERIOD_MS);
-            esp_restart();                      
+            esp_restart();
         }
         //abre a interface de configuracao criando uma rede wifi
         if (dois)
@@ -1578,29 +1309,27 @@ void loopConfiguracao(void * pvParameters)
 
 void desativaLoopRelogio()
 {
-    botao = true;
-    detachInterrupt(digitalPinToInterrupt(BUTTON_PIN));
+    configuracoesNoBoot = true;
+    esp_sleep_enable_timer_wakeup(uS_TO_S_FACTOR);
+    esp_deep_sleep_start(); //força o ESP32 entrar em modo SLEEP por um segundo
 }
-void reconnect()
+void reconnect(Configuracao config)
 {
-
     while(WiFi.status() != WL_CONNECTED) 
     {
         WiFi.reconnect();
-        vTaskDelay(5000/ portTICK_PERIOD_MS);
+        vTaskDelay(10000/ portTICK_PERIOD_MS);
     }
-	while (!client.connected())
-    {
-        client.setCallback(callback);
-		if (client.connect(configuracao.mqttName,configuracao.mqttUser, configuracao.mqttSenha))
-		{
-            internetEstado = true;
-            break;          
-		} else
-		{
-            internetEstado = false;
-			vTaskDelay(5000/ portTICK_PERIOD_MS);
-		}
+	
+    client.setCallback(callback);
+	if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
+	{
+        internetEstado = true;
+        vTaskDelay(5000/ portTICK_PERIOD_MS);    
+	} else
+	{
+        internetEstado = false;
+		vTaskDelay(5000/ portTICK_PERIOD_MS);
 	}
 }
 
@@ -1610,11 +1339,12 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
     {
         String enviar = String("field1="+String(indices.temperaturaDeBulboSeco) +
                         "&field2="+String(indices.temperaturaDeBulboUmido)+
-                        "&field3="+String(indices.umidadeRelativa)+
-                        "&field4="+String(indices.temperaturaDeGlobo)+
-                        "&field5="+String(indices.itu)+
-                        "&field6="+String(indices.itgu)+
-                        "&field7="+String(indices.pontoDeOrvalho)+"&status=MQTTPUBLISH");
+                        "&field3="+String(indices.temperaturaDeGlobo)+
+                        "&field4="+String(indices.umidadeRelativa2)+
+                        "&field5="+String(indices.umidadeRelativa1)+
+                        "&field6="+String(indices.itu1)+
+                        "&field7="+String(indices.itgu1)+
+                        "&field8="+String(indices.ibutg1)+"&status=MQTTPUBLISH");
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
     }else
     {
@@ -1622,11 +1352,11 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
         StaticJsonDocument<192> doc;
         doc["temperatura"] = indices.temperaturaDeBulboSeco;
         doc["bulboUmido"] = indices.temperaturaDeBulboUmido;
-        doc["umidade"] = indices.umidadeRelativa;
+        doc["umidade"] = indices.umidadeRelativa1;
         doc["globoNegro"] = indices.temperaturaDeGlobo;
-        doc["itu"] = indices.itu;
-        doc["itgu"] = indices.itgu;
-        doc["orvalho"] = indices.pontoDeOrvalho;
+        doc["itu"] = indices.itu1;
+        doc["itgu"] = indices.itgu1;
+        doc["orvalho"] = indices.pontoDeOrvalho1;
         doc["animal"] = config.tipoAnimal;
         doc["equipamento"] = config.mqttName;
         doc["erroBulboSeco"] = indices.erroSensorTbs;
@@ -1643,7 +1373,7 @@ void click(Button2& btn)
 {   
     indice += 1;
 }
-void longClick(Button2& btn) 
+void doubleClick(Button2& btn) 
 {
     ativarFuncao = true;        
 }

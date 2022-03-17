@@ -46,22 +46,36 @@ struct VariaveisTermicas
 {   
     //Armazena o horario da leitura dos sensores
     DateTime horario;
-    //Armazena a umidade relativa calculada em %
-    float umidadeRelativa;
+    //Armazena a umidade relativa calculada em % a partir do psicrômetro
+    float umidadeRelativa1;
+    //Armazena a umidade relativa calculada em % a partir do sensor htu21d
+    float umidadeRelativa2;
     //Armazena a temperatura de globo obtida em C
     float temperaturaDeGlobo;
     //Armazena a temperatura de bulbo seco obtida em C
     float temperaturaDeBulboSeco;
     //Armazena a temperatura de bulbo umido obitida em C
     float temperaturaDeBulboUmido;
-    //Armazena a temperatura do ponto de orvalho calculada em C
-    float pontoDeOrvalho;
+    //Armazena a temperatura do ponto de orvalho calculada em C a partir do psicrômetro
+    float pontoDeOrvalho1;
+    //Armazena a temperatura do ponto de orvalho calculada em C a partir do htu21d
+    float pontoDeOrvalho2;
     //Armazena a pressão do ambiente em hPa
     float pressao;
-    //Índice de temperatura globo e umidade
-    float itgu;
-    //Índice de temperatura e umidade
-    float itu;
+    //Índice de temperatura globo e umidade a partir do psicrômetro
+    float itgu1;
+    //Índice de temperatura globo e umidade a partir do htu21d
+    float itgu2;
+    //Índice de temperatura e umidade a partir do psicrômetro
+    float itu1;
+    //Índice de temperatura e umidade a partir do htu21d
+    float itu2;
+    //Índice de bulbu umido e terperatura de globo sem carga solar
+    float ibutg1;
+    //Índice de bulbu umido e terperatura de globo com carga solar
+    float ibutg2;
+
+
 
     //Armazena a umidade máxima
     float umidadeMax;
@@ -136,7 +150,7 @@ struct VariaveisTermicas
      * e o valor da temperatura de bulbo ficará zerado
      * @return float Valor o itu calculado
      */
-    float calculaItu(Animal animal, bool tipoDeSensor);
+    float calculaItu(Animal animal, bool tipoDeSensor, float umidadeRelativa);
 
     /**
      * @brief iguala os valores de máximas e mínimas para os valores no momento em que a função é chamada

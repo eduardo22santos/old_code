@@ -18,21 +18,21 @@ float VariaveisTermicas::calculaUmidadeRelativa(float tbs1, float tbu1, float pr
     float esu = 6.1078 * pow(10, ((7.5*tbu1)/(237.3+tbu1)));
     float es = 6.1078 * pow(10, ((7.5*tbs1)/(237.3+tbs1)));
     //pressão real de vapor de água, para psicrômetros não aspirados
-    float e = esu - (0.0008 * ((pressaoBmp/100)*(tbs1 - tbu1)));
+    float e = esu - (0.0008 * ((pressaoBmp)*(tbs1 - tbu1)));
     
     return (e/es)*100;
 }
 void VariaveisTermicas::zeraMaxMin()
 {
-    umidadeMax = umidadeMin = umidadeRelativa;
+    umidadeMax = umidadeMin = umidadeRelativa2;
     temperaturaMax = temperaturaMin = temperaturaDeBulboSeco;
     temperaturaDeBulboUmidoMax = temperaturaDeBulboUmidoMin = temperaturaDeBulboUmido;
     globoMax = globoMin = temperaturaDeGlobo;
-    ituMax = ituMin = itu;
-    itguMax = itguMin = itgu;
-    orvalhoMax = orvalhoMin = pontoDeOrvalho;
+    ituMax = ituMin = itu2;
+    itguMax = itguMin = itgu2;
+    orvalhoMax = orvalhoMin = pontoDeOrvalho2;
 }
-float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor)
+float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor, float umidadeRelativa)
 {
     if (animal == geral)
     {
@@ -61,13 +61,12 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
         globoNegro.requestTemperatures();
         globoNegro.requestTemperatures();
         bulboSeco.requestTemperatures();
-        if(tipoDeSensor) bulboUmido.requestTemperatures();
+        bulboUmido.requestTemperatures();
         delay(750);
         //variaveis temporárias para nao passar leituras erradas
         float globo = globoNegro.getTempCByIndex(0);
         float tbs = bulboSeco.getTempCByIndex(0);
-        float tbu;
-        if(tipoDeSensor) tbu = bulboUmido.getTempCByIndex(0);
+        float tbu = bulboUmido.getTempCByIndex(0);
         float pressao1 = bmp.readPressure();
         
         //Verifica se há erros nas leituras dos sensores ds18b20
@@ -80,16 +79,13 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             erroSensorTbs = false;
         }
 
-        if(tipoDeSensor)
+        if(tbu == -127.0 || tbu == 85)
         {
-            if(tbu == -127.0 || tbu == 85)
-            {
-                erroSensorUmidade = true;
-            }else
-            {
-                temperaturaDeBulboUmido = tbu;
-                erroSensorUmidade = false;
-            }
+            erroSensorUmidade = true;
+        }else
+        {
+            temperaturaDeBulboUmido = tbu;
+            erroSensorUmidade = false;
         }
 
         if(globo == -127.0 || globo == 85)
@@ -104,7 +100,7 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
         //Verifica se há erro no sensor de pressão
         if (isnan(pressao1) == 0 && pressao1 > 1)
         {
-            pressao = pressao1;
+            pressao = (pressao1 / 100);
             erroSensorPressao = false;
         }else
         {
@@ -112,18 +108,16 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
         }
         
         //Verifica se há erro na leitura do sensor htu21d
-        if (!tipoDeSensor)
+        float umidade = htu21d.readHumidity();
+        if(umidade == 998.0)
         {
-            float umidade = htu21d.readHumidity();
-            if(umidade == 998.0)
-            {
-                erroSensorUmidade = true;
-            }else
-            {
-                umidadeRelativa = (umidade > 98)? 98 : umidade;
-                erroSensorUmidade = false;
-            }
+            erroSensorUmidade = true;
+        }else
+        {
+            umidadeRelativa2 = (umidade > 98)? 98 : umidade;
+            erroSensorUmidade = false;
         }
+        
         
     
         //Calculos dos indices termicos
@@ -131,15 +125,21 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
         {
             digitalWrite(LED_VERMELHO, LOW);
 
-            if (tipoDeSensor)
-            {          
-                umidadeRelativa = calculaUmidadeRelativa(tbs, tbu, pressao1);
-            }
+                     
+            umidadeRelativa1 = calculaUmidadeRelativa(tbs, tbu, pressao1);
+            
 
-            itu = calculaItu(animal, tipoDeSensor);
+            itu1 = calculaItu(animal, tipoDeSensor, umidadeRelativa1);
+            itu2 = calculaItu(animal, tipoDeSensor, umidadeRelativa2);
 
-            pontoDeOrvalho = (243.04*(log(umidadeRelativa/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
-            itgu = temperaturaDeGlobo + (0.36 * pontoDeOrvalho) + 41.5;
+            pontoDeOrvalho1 = (243.04*(log(umidadeRelativa1/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa1/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
+            pontoDeOrvalho2 = (243.04*(log(umidadeRelativa2/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa2/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
+            
+            itgu1 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho1) + 41.5;
+            itgu2 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho2) + 41.5;
+
+            ibutg1 = (0.7*temperaturaDeBulboUmido) + (0.3*temperaturaDeGlobo);
+            ibutg2 = (0.7*temperaturaDeBulboUmido) + (0.2*temperaturaDeGlobo) + (0.1*temperaturaDeBulboSeco);
 
             //Compara as maximas e minimas
             if (temperaturaDeBulboSeco >  temperaturaMax)
@@ -156,26 +156,26 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             {
                 temperaturaDeBulboUmidoMin = temperaturaDeBulboUmido;
             }
-            if (umidadeRelativa > umidadeMax)
+            if (umidadeRelativa2 > umidadeMax)
             {
-                umidadeMax = umidadeRelativa;
-            }else if (umidadeRelativa < umidadeMin)
+                umidadeMax = umidadeRelativa2;
+            }else if (umidadeRelativa2 < umidadeMin)
             {
-                umidadeMin = umidadeRelativa;
+                umidadeMin = umidadeRelativa2;
             }
-            if (itgu > itguMax)
+            if (itgu2 > itguMax)
             {
-                itguMax = itgu;
-            }else if (itgu < itguMin)
+                itguMax = itgu2;
+            }else if (itgu2 < itguMin)
             {
-                itguMin = itgu;
+                itguMin = itgu2;
             }
-            if (itu > ituMax)
+            if (itu2 > ituMax)
             {
-                ituMax = itu;
-            }else if (itu < ituMin)
+                ituMax = itu2;
+            }else if (itu2 < ituMin)
             {
-                ituMin = itu;
+                ituMin = itu2;
             }
             if (temperaturaDeGlobo > globoMax)
             {
@@ -184,12 +184,12 @@ void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasT
             {
                 globoMin = temperaturaDeGlobo;
             }
-            if (pontoDeOrvalho > orvalhoMax)
+            if (pontoDeOrvalho2 > orvalhoMax)
             {
-                orvalhoMax = pontoDeOrvalho;
-            }else if (pontoDeOrvalho < orvalhoMin)
+                orvalhoMax = pontoDeOrvalho2;
+            }else if (pontoDeOrvalho2 < orvalhoMin)
             {
-                orvalhoMin = pontoDeOrvalho;
+                orvalhoMin = pontoDeOrvalho2;
             } 
         }else
         {
