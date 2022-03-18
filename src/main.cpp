@@ -229,7 +229,7 @@ String arquivoDatalog_txt = "/datalog.csv";
  * @brief cabeçalho do arquivo datalog, contendo o identificador de cada coluna
  * 
  */
-String datalogCabecalho = "data,horario,umidade1,umidade2,globo,tbs,tbu,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,falha";
+String datalogCabecalho = "data,horario,umidade1,umidade2,temperaturaDeGlobo,temperaturaBulboSeco,temperaturaBulboUmido,htu21d_Temperatura,bmp_Temperatura,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,rtcTemperatura,altitude,falha";
 /**
  * @brief Nome do arquivo que salva os valores de máximas e mínimas diários
  * 
@@ -555,7 +555,7 @@ void tarefaSalvar(VariaveisTermicas variaveisTermicas)
     char horarioArquivo[9] = "hh:mm:ss";
     char dataArquivo[11] = "DD/MM/YYYY";
 
-    //"data,horario,umidade1,umidade2,globo,tbs,tbu,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,falha";
+    //""data,horario,umidade1,umidade2,temperaturaDeGlobo,temperaturaBulboSeco,temperaturaBulboUmido,htu21d_Temperatura,bmp_Temperatura,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,rtcTemperatura,altitude,falha";
 
     String datalog = String(variaveisTermicas.horario.toString(dataArquivo)) + "," + 
         String(variaveisTermicas.horario.toString(horarioArquivo)) + "," +
@@ -564,6 +564,8 @@ void tarefaSalvar(VariaveisTermicas variaveisTermicas)
         String(variaveisTermicas.temperaturaDeGlobo) + "," +
         String(variaveisTermicas.temperaturaDeBulboSeco) + "," +
         String(variaveisTermicas.temperaturaDeBulboUmido) + "," +
+        String(variaveisTermicas.htu21dTemperatura) + "," +
+        String(variaveisTermicas.bmpTemperatura) + "," +
         String(variaveisTermicas.itu1) + "," +
         String(variaveisTermicas.itu2) + "," +
         String(variaveisTermicas.itgu1) + "," +
@@ -573,6 +575,8 @@ void tarefaSalvar(VariaveisTermicas variaveisTermicas)
         String(variaveisTermicas.pontoDeOrvalho1) + "," +
         String(variaveisTermicas.pontoDeOrvalho2) + "," +
         String(variaveisTermicas.pressao) + "," +
+        String(variaveisTermicas.rtcTemperature) + "," +
+        String(variaveisTermicas.altitude) + "," +
         String(falha);
     //Salva no arquivo datalog
     appendFile(SD, arquivoDatalog_txt, datalog);
@@ -793,8 +797,8 @@ void setup()
     if (salvarHorarioMeiaNoite)
     {
         salvarHorarioMeiaNoite = false;
-        globoNegro.requestTemperatures();
         bulboSeco.requestTemperatures();
+        globoNegro.requestTemperatures();
         bulboUmido.requestTemperatures();
         dadosLocais.globo = globoNegro.getTempCByIndex(0);
         dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
@@ -821,7 +825,22 @@ void setup()
             String(dadosLocais.orvalhoMin);
         //Salvando a string no arquivo de maximas e minimas
         appendFile(SD, pasta + arquivoMaxMin, datalog);
-        vTaskDelay(1000/portTICK_PERIOD_MS);
+        
+        if (!configuracoesNoBoot && internetAtiva)
+        {
+            display.clearDisplay();
+            display.setCursor(0,0);
+            display.print("VERIFICANDO RTC...");
+            display.display();
+            display.setCursor(0,20);
+            display.print(atualizarRtc(false));
+            display.display();
+            vTaskDelay(2000/portTICK_PERIOD_MS); 
+            ESP.restart();
+        }else
+        {
+            vTaskDelay(1000/portTICK_PERIOD_MS);
+        }
     }
 
 
@@ -831,8 +850,8 @@ void setup()
     if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
     {
         SD.remove(arquivoMaxMinJson);
-        globoNegro.requestTemperatures();
         bulboSeco.requestTemperatures();
+        globoNegro.requestTemperatures();
         bulboUmido.requestTemperatures();
         dadosLocais.globo = globoNegro.getTempCByIndex(0);
         dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
@@ -849,8 +868,8 @@ void setup()
         // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
         if (!SD.exists(arquivoMaxMinJson))
         {
-            globoNegro.requestTemperatures();
             bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
             bulboUmido.requestTemperatures();
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
@@ -860,8 +879,8 @@ void setup()
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
         {
-            globoNegro.requestTemperatures();
             bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
             bulboUmido.requestTemperatures();
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
@@ -971,13 +990,14 @@ void loop()
      */
     if ((currentMillis - intervaloLerVariaveis) >= long(10000))
     {
-        intervaloLerVariaveis = currentMillis;
-        globoNegro.requestTemperatures();
+        intervaloLerVariaveis = currentMillis + ((currentMillis - intervaloLerVariaveis)-10000);
         bulboSeco.requestTemperatures();
+        globoNegro.requestTemperatures();
         bulboUmido.requestTemperatures();
         dadosLocais.globo = globoNegro.getTempCByIndex(0);
         dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
         dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+        
         xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);        
     }
     /**
@@ -986,7 +1006,7 @@ void loop()
      */
     if ((currentMillis - intervaloSalvarDados) >= long(configuracao.intervaloSalvar*1000))
     {
-        intervaloSalvarDados = currentMillis;
+        intervaloSalvarDados = currentMillis + ((currentMillis - intervaloLerVariaveis)-configuracao.intervaloSalvar*1000);
 
         xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
     } 
@@ -996,7 +1016,7 @@ void loop()
      */
     if (internetEstado && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
     {
-        intervaloEnviarDados = currentMillis;
+        intervaloEnviarDados = currentMillis + ((currentMillis - intervaloLerVariaveis)-configuracao.intervaloOnline*1000);
         //MQTT
         if (internetEstado)
         {

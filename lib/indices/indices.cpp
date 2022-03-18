@@ -60,6 +60,9 @@ void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t
         }              
         //variaveis temporárias para nao passar leituras erradas
         float pressao1 = bmp.readPressure();
+        altitude = bmp.readAltitude();
+        htu21dTemperatura = htu21d.readTemperature();
+        bmpTemperatura = bmp.readTemperature();
         
         //Verifica se há erros nas leituras dos sensores ds18b20
         if(tbs == -127.0 || tbs == 85)

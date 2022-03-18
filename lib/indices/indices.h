@@ -123,6 +123,12 @@ struct VariaveisTermicas
     float globo, tbs, tbu;
     //monitora a temperatura interna da interface com o termômetro instalado no rtc
     float rtcTemperature;
+    //altitude recebida pelo sensor mbp280
+    float altitude;
+    //temperatura obtida via htu21d
+    float htu21dTemperatura;
+    //temperaturda obtida via bmp280
+    float bmpTemperatura;
 
     /**
      * @brief calcula a umidade relativa a partir do bulbo umido
