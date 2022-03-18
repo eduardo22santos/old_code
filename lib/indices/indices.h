@@ -119,6 +119,10 @@ struct VariaveisTermicas
     bool erroRtc = false;
     // indica erro em algum sensor
     bool falhaSensores = false;
+    
+    float globo, tbs, tbu;
+    //monitora a temperatura interna da interface com o termômetro instalado no rtc
+    float rtcTemperature;
 
     /**
      * @brief calcula a umidade relativa a partir do bulbo umido
@@ -144,7 +148,7 @@ struct VariaveisTermicas
      * e o valor da temperatura de bulbo ficará zerado
      * @param relogio objeto do modulo rtc DS3231
      */
-    void atualizaVariaveis(DallasTemperature &globoNegro, DallasTemperature &bulboUmido, DallasTemperature &bulboSeco, HTU21D &htu21d, Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio);
+    void atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio);
     
     /**
      * @brief Calcula o itu de acordo com o animal especificado, se tipoDeSensor = false, índices que precisão da temperatura de bulbo umido serão adaptados para o itu geral

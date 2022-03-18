@@ -46,30 +46,19 @@ float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor, float umid
     }
 
 }
-void VariaveisTermicas::atualizaVariaveis(DallasTemperature &globoNegro, DallasTemperature &bulboUmido, DallasTemperature &bulboSeco, HTU21D &htu21d, Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
+void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
 {
         //Atualiza o horario
         horario = relogio.now();
+        rtcTemperature = relogio.getTemperature();
         if (!horario.isValid())
         {
             erroRtc = true;
         }else
         {
             erroRtc = false;
-        }      
-        //atualiza os sensores de temperatura
-        
-        globoNegro.requestTemperatures();
-        globoNegro.requestTemperatures();
-        globoNegro.requestTemperatures();
-        globoNegro.requestTemperatures();
-        bulboSeco.requestTemperatures();
-        bulboUmido.requestTemperatures();
-        delay(750);
+        }              
         //variaveis temporárias para nao passar leituras erradas
-        float globo = globoNegro.getTempCByIndex(0);
-        float tbs = bulboSeco.getTempCByIndex(0);
-        float tbu = bulboUmido.getTempCByIndex(0);
         float pressao1 = bmp.readPressure();
         
         //Verifica se há erros nas leituras dos sensores ds18b20

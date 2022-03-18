@@ -91,6 +91,17 @@ TaskHandle_t tarefa_enviar_mqtt;
  */
 TaskHandle_t tarefa_ler_variaveis;
 /**
+ * @brief indentificador taskHandle_d da terefa que irá fazer a reconexão com o wifi e servidor
+ * 
+ */
+TaskHandle_t reconectar_internet;
+/**
+ * @brief faz a reconexão com a rede de internet
+ * 
+ * @param pvParameters 
+ */
+void reconectarRede(void * pvParameters);
+/**
  * @brief tarefa que irá salvar os dados no cartão
  * 
  * @param pvParameters 
@@ -408,6 +419,11 @@ String httpHorario;
  */
 void redefinir();
 /**
+ * @brief evita o acesso simultaneo de recursos de internet em ambos os núcleos
+ * 
+ */
+bool permissao = true;
+/**
  * @brief Função callback para o alarme do rtc
  * 
  */
@@ -586,8 +602,7 @@ void lerSensores(void * pvParameters)
 {
     
     xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY);
-
-    dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+    dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
     if (dadosLocais.erroRtc)
     {
         esp_restart();
@@ -595,7 +610,14 @@ void lerSensores(void * pvParameters)
     xSemaphoreGive(xSemaforo_atualizar_indices);
     vTaskDelete(NULL);
 }
-
+void reconectarRede(void * pvParameters)
+{
+    
+    reconnect(configuracao);
+    permissao = true;
+    vTaskDelete(NULL);
+}
+VariaveisTermicas variaveis;
 void setup()
 {
     ////Serial para debug
@@ -771,7 +793,13 @@ void setup()
     if (salvarHorarioMeiaNoite)
     {
         salvarHorarioMeiaNoite = false;
-        dadosLocais.atualizaVariaveis(globoNegro,bulboUmido,bulboSeco,htu21d,configuracao.tipoAnimal,LED_VERMELHO,bmp,configuracao.sensorBulboUmido,relogio);
+        globoNegro.requestTemperatures();
+        bulboSeco.requestTemperatures();
+        bulboUmido.requestTemperatures();
+        dadosLocais.globo = globoNegro.getTempCByIndex(0);
+        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+        dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
 
         char horarioArquivo[9] = "hh:mm:ss";
         char dataArquivo[11] = "DD/MM/YYYY";
@@ -803,8 +831,13 @@ void setup()
     if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
     {
         SD.remove(arquivoMaxMinJson);
-        dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        dadosLocais.zeraMaxMin();
+        globoNegro.requestTemperatures();
+        bulboSeco.requestTemperatures();
+        bulboUmido.requestTemperatures();
+        dadosLocais.globo = globoNegro.getTempCByIndex(0);
+        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+        dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);        dadosLocais.zeraMaxMin();
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
         File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
@@ -816,12 +849,24 @@ void setup()
         // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
         if (!SD.exists(arquivoMaxMinJson))
         {
-            dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            globoNegro.requestTemperatures();
+            bulboSeco.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);            
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
         {
-            dadosLocais.atualizaVariaveis(globoNegro, bulboUmido, bulboSeco, htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            globoNegro.requestTemperatures();
+            bulboSeco.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
     }
@@ -927,7 +972,13 @@ void loop()
     if ((currentMillis - intervaloLerVariaveis) >= long(10000))
     {
         intervaloLerVariaveis = currentMillis;
-        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 4, &tarefa_ler_variaveis,1);        
+        globoNegro.requestTemperatures();
+        bulboSeco.requestTemperatures();
+        bulboUmido.requestTemperatures();
+        dadosLocais.globo = globoNegro.getTempCByIndex(0);
+        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);        
     }
     /**
      * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
@@ -937,7 +988,7 @@ void loop()
     {
         intervaloSalvarDados = currentMillis;
 
-        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 2, &tarefa_salvar,0);
+        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
     } 
     /**
      * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
@@ -961,15 +1012,23 @@ void loop()
      */
     if(currentMillis - intervaloAtualizacaoTela >= long(1000))
     {           
-
+        DateTime tempoAtual;
         intervaloAtualizacaoTela = currentMillis;
+        
+            if((xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY))== pdTRUE)
+            {
+                /**
+                 * @brief essa instrução verifica se há erros nos em algum dos três sensores DS18B20 
+                 * e alterna para tela b se necessário;
+                 */
+                
+                variaveis = dadosLocais;  
+                tempoAtual = relogio.now();
+            }
+            xSemaphoreGive(xSemaforo_atualizar_indices);
+        
 
-        /**
-         * @brief essa instrução verifica se há erros nos em algum dos três sensores DS18B20 
-         * e alterna para tela b se necessário;
-         */
-        xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY);   
-        if (dadosLocais.falhaSensores)
+        if (variaveis.falhaSensores)
         {
             alternar = 'b';
         }else
@@ -982,21 +1041,20 @@ void loop()
         {           
             display.clearDisplay();
             display.setCursor(0,0);
-            display.printf("BS %.0f BU %.0f GN %.0f",dadosLocais.temperaturaDeBulboSeco
-                                                    ,dadosLocais.temperaturaDeBulboUmido
-                                                    ,dadosLocais.temperaturaDeGlobo);
+            display.printf("BS %.0f BU %.0f GN %.0f",variaveis.temperaturaDeBulboSeco
+                                                    ,variaveis.temperaturaDeBulboUmido
+                                                    ,variaveis.temperaturaDeGlobo);
             display.setCursor(0,9);
-            display.printf("U1 %.0f%% U2 %.0f%% h %.0f",dadosLocais.umidadeRelativa1
-                                                            ,dadosLocais.umidadeRelativa2
-                                                            ,dadosLocais.pressao);
+            display.printf("U1 %.0f%% U2 %.0f%% h %.0f",variaveis.umidadeRelativa1
+                                                            ,variaveis.umidadeRelativa2
+                                                            ,variaveis.pressao);
             display.setCursor(0,18);
-            display.printf("A ITU %.0f ITGU %.0f",dadosLocais.itu1, dadosLocais.itgu1);
+            display.printf("A ITU %.0f ITGU %.0f",variaveis.itu1, variaveis.itgu1);
             display.setCursor(0,27);
-            display.printf("B ITU %.0f ITGU %.0f",dadosLocais.itu2, dadosLocais.itgu2);
+            display.printf("B ITU %.0f ITGU %.0f",variaveis.itu2, variaveis.itgu2);
             display.setCursor(0,36);
-            display.printf("IBUTG1 %.0f IBUTG2 %.0f",dadosLocais.ibutg1, dadosLocais.ibutg2);
+            display.printf("IBUTG1 %.0f IBUTG2 %.0f",variaveis.ibutg1, variaveis.ibutg2);
             display.setCursor(0,45);
-            DateTime tempoAtual = relogio.now();
             char horarioArquivo[21] = " hh:mm:ss DD/MM/YYYY";
             display.print(tempoAtual.toString(horarioArquivo));
             display.setCursor(0,54);
@@ -1042,7 +1100,7 @@ void loop()
             display.setCursor(0,50);
             display.print("htu21d");
             display.setCursor(84,10);
-            if (dadosLocais.erroSensorPressao) 
+            if (variaveis.erroSensorPressao) 
             {
                 display.printf("FALHOU!");
             }else
@@ -1050,7 +1108,7 @@ void loop()
                 display.printf("- OK");
             }
             display.setCursor(84,20);
-            if (dadosLocais.erroSensorTbs) 
+            if (variaveis.erroSensorTbs) 
             {
                 display.printf("FALHOU!");
             }else
@@ -1058,7 +1116,7 @@ void loop()
                 display.printf("- OK");
             }
             display.setCursor(84,30);
-            if (dadosLocais.erroSensorUmidade) 
+            if (variaveis.erroSensorUmidade) 
             {
                 display.printf("FALHOU!");
             }else
@@ -1066,7 +1124,7 @@ void loop()
                 display.printf("- OK");
             }
             display.setCursor(84,40);
-            if (dadosLocais.erroSensorGlobo) 
+            if (variaveis.erroSensorGlobo) 
             {
                 display.printf("FALHOU!");
             }else
@@ -1074,7 +1132,7 @@ void loop()
                 display.printf("- OK");
             }
             display.setCursor(84,50);
-            if (dadosLocais.erroSensorUmidade2) 
+            if (variaveis.erroSensorUmidade2) 
             {
                 display.printf("FALHOU!");
             }else
@@ -1083,7 +1141,6 @@ void loop()
             }
             display.display();
         }  
-        xSemaphoreGive(xSemaforo_atualizar_indices);
     }
 
     //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
@@ -1114,12 +1171,13 @@ void loop()
         }
     }
 
-    if (internetAtiva)
+    if (internetAtiva && permissao)
     {
         if (!client.connected())
         {
             internetEstado = false;
-            reconnect(configuracao);
+            xTaskCreatePinnedToCore(reconectarRede, "reconectarRede", 10000, NULL, 3, &reconectar_internet,0);
+            permissao = false;
         }else
         {
             client.loop();
@@ -1421,22 +1479,24 @@ void reconnect(Configuracao config)
     while(WiFi.status() != WL_CONNECTED) 
     {
         WiFi.reconnect();
-        digitalWrite(LED_AMARELO, HIGH);
+        sigmaDeltaWrite(0, 255);
         vTaskDelay(10000/ portTICK_PERIOD_MS);
     }
+    
+    while (!client.connected())
+    {
+        client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
+        client.setCallback(callback);
 
-	client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
-    client.setCallback(callback);
-    client.setCallback(callback);
-	if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
-	{
-        internetEstado = true;
-        vTaskDelay(5000/ portTICK_PERIOD_MS);    
-	} else
-	{
-        internetEstado = false;
-		vTaskDelay(5000/ portTICK_PERIOD_MS);
-	}
+        if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
+        {
+            internetEstado = true;
+        } else
+        {
+            internetEstado = false;
+            vTaskDelay(5000/ portTICK_PERIOD_MS);
+        }
+    }
 }
 
 void enviarMqtt(Configuracao config, VariaveisTermicas indices)
