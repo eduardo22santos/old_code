@@ -548,7 +548,7 @@ void tarefaSalvar(VariaveisTermicas variaveisTermicas)
     }
 
     char falha = '0';
-    if(variaveisTermicas.erroSensorGlobo || variaveisTermicas.erroSensorTbs || variaveisTermicas.erroSensorUmidade)
+    if(variaveisTermicas.falhaSensores)
     {
         falha = '1';
     }
@@ -990,7 +990,7 @@ void loop()
      */
     if ((currentMillis - intervaloLerVariaveis) >= long(10000))
     {
-        intervaloLerVariaveis = currentMillis + ((currentMillis - intervaloLerVariaveis)-10000);
+        intervaloLerVariaveis = currentMillis;
         bulboSeco.requestTemperatures();
         globoNegro.requestTemperatures();
         bulboUmido.requestTemperatures();
@@ -999,24 +999,34 @@ void loop()
         dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
         
         xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);        
-    }
+    }else if(variaveis.erroRtc &&  (currentMillis - intervaloLerVariaveis) >= long(1000))
+    {
+        intervaloLerVariaveis = currentMillis;
+        bulboSeco.requestTemperatures();
+        globoNegro.requestTemperatures();
+        bulboUmido.requestTemperatures();
+        dadosLocais.globo = globoNegro.getTempCByIndex(0);
+        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);
+    } 
     /**
      * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
      * 
      */
     if ((currentMillis - intervaloSalvarDados) >= long(configuracao.intervaloSalvar*1000))
     {
-        intervaloSalvarDados = currentMillis + ((currentMillis - intervaloLerVariaveis)-configuracao.intervaloSalvar*1000);
+        intervaloSalvarDados = currentMillis;
 
         xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
-    } 
+    }
     /**
      * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
      * 
      */
     if (internetEstado && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
     {
-        intervaloEnviarDados = currentMillis + ((currentMillis - intervaloLerVariaveis)-configuracao.intervaloOnline*1000);
+        intervaloEnviarDados = currentMillis;
         //MQTT
         if (internetEstado)
         {
@@ -1532,7 +1542,7 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
                         "&field7="+String(indices.itgu1)+
                         "&field8="+String(indices.ibutg1)+"&status=MQTTPUBLISH");
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
-    }else
+    }else if(config.plataforma == Original)
     {
         String enviar;
         StaticJsonDocument<192> doc;
@@ -1548,6 +1558,34 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
         doc["erroBulboSeco"] = indices.erroSensorTbs;
         doc["erroBulboUmido"] = indices.erroSensorUmidade;
         doc["erroGloboNegro"] = indices.erroSensorGlobo;
+
+        serializeJson(doc, enviar);
+        client.publish(config.mqttTopico, enviar.c_str());
+    }else if(config.plataforma == ubidots)
+    {
+        String enviar;
+        StaticJsonDocument<384> doc;
+
+        doc["timestamp"] = indices.horario.timestamp();
+        doc["umidade1"] = indices.umidadeRelativa1;
+        doc["umidade2"] = indices.umidadeRelativa2;
+        doc["globo"] = indices.temperaturaDeGlobo;
+        doc["tbs"] = indices.temperaturaDeBulboSeco;
+        doc["tbu"] = indices.temperaturaDeBulboUmido;
+        doc["htu21dT"] = indices.htu21dTemperatura;
+        doc["bmpT"] = indices.bmpTemperatura;
+        doc["itu1"] = indices.itu1;
+        doc["itu2"] = indices.itu2;
+        doc["itgu1"] = indices.itgu1;
+        doc["itgu2"] = indices.itgu2;
+        doc["ibutg1"] = indices.ibutg1;
+        doc["ibutg2"] = indices.ibutg2;
+        doc["orvalho1"] = indices.pontoDeOrvalho1;
+        doc["orvalho2"] = indices.pontoDeOrvalho2;
+        doc["hpa"] = indices.pressao;
+        doc["rtcT"] = indices.rtcTemperature;
+        doc["altitude"] = indices.altitude;
+        doc["falha"] = indices.falhaSensores;
 
         serializeJson(doc, enviar);
         client.publish(config.mqttTopico, enviar.c_str());

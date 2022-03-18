@@ -41,11 +41,12 @@
  * thinspeak = 0
  * conftermApi = 1
  * Original = 2
+ * Ubidots = 3
  * 
  */
 enum PlataformaOnline
 {
-    thingspeak, conftermApi, Original
+    thingspeak, conftermApi, Original, ubidots
 };
 
 /**
@@ -70,29 +71,29 @@ void createDir(fs::FS &fs, String path);
  */
 struct Configuracao {
   //SSid do wifi
-  char wifiSsid[32];
+  char wifiSsid[64];
   //Senha do wifi
-  char wifiSenha[32];
+  char wifiSenha[64];
   //eduroan login
-  char eduroanLogin[32];
+  char eduroanLogin[64];
   //eduroan senha
-  char eduroanSenha[32];
+  char eduroanSenha[64];
   //Porta do servidor mqtt
   int mqttPort;
   //endereço do servidor mqtt
-  char mqttHostname[32];
+  char mqttHostname[64];
   //Senha de acesso do servidor mqtt
-  char mqttSenha[32];
+  char mqttSenha[64];
   //Usuario de acesso do servidor mqtt
-  char mqttUser[32];
+  char mqttUser[64];
   //Nome do tópico publish mqtt
-  char mqttTopico[32];
+  char mqttTopico[64];
   //Mqtt id
-  char mqttName[32];
+  char mqttName[64];
   //O status do servidor, ativo ou desconectado
   bool mqttStatus;
   //Endereço do servidor NTP, responsável por sincronizar o horario
-  char servidorNtp[32];
+  char servidorNtp[64];
   //Define o fuso horário do Relógio
   int timeZone;
   //Define o intervalo em que o aparelho irá enviar os dados online
