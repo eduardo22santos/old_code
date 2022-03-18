@@ -1538,9 +1538,9 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
                         "&field3="+String(indices.temperaturaDeGlobo)+
                         "&field4="+String(indices.umidadeRelativa2)+
                         "&field5="+String(indices.umidadeRelativa1)+
-                        "&field6="+String(indices.itu1)+
-                        "&field7="+String(indices.itgu1)+
-                        "&field8="+String(indices.ibutg1)+"&status=MQTTPUBLISH");
+                        "&field6="+String(indices.htu21dTemperatura)+
+                        "&field7="+String(indices.rtcTemperature)+
+                        "&field8="+String(indices.falhaSensores)+"&status=MQTTPUBLISH");
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
     }else if(config.plataforma == Original)
     {
