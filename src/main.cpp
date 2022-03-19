@@ -809,7 +809,7 @@ void setup()
         //Salvando a string no arquivo de maximas e minimas
         appendFile(SD, pasta + arquivoMaxMin, datalog);
         
-        if (!configuracoesNoBoot && internetAtiva)
+        if (configuracao.internetStatus)
         {
             display.clearDisplay();
             display.setCursor(0,11);
