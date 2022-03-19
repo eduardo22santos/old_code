@@ -46,7 +46,7 @@ float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor, float umid
     }
 
 }
-void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
+void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
 {
         //Atualiza o horario
         horario = relogio.now();
@@ -103,21 +103,12 @@ void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t
         }
         
         //Verifica se há erro na leitura do sensor htu21d
-        float umidade = htu21d.readHumidity();
-        if(umidade == 998.0)
-        {
-            erroSensorUmidade2 = true;
-        }else
-        {
-            umidadeRelativa2 = (umidade > 98)? 98 : umidade;
-            htu21dTemperatura = htu21d.readTemperature();
-            erroSensorUmidade2 = false;
-        }
+        
         
         
     
         //Calculos dos indices termicos
-        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroSensorUmidade2 && !erroRtc)
+        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroRtc)
         {
             digitalWrite(LED_VERMELHO, LOW);
             falhaSensores = false;
@@ -127,13 +118,13 @@ void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t
             
 
             itu1 = calculaItu(animal, tipoDeSensor, umidadeRelativa1);
-            itu2 = calculaItu(animal, tipoDeSensor, umidadeRelativa2);
+            //itu2 = calculaItu(animal, tipoDeSensor, umidadeRelativa2);
 
             pontoDeOrvalho1 = (243.04*(log(umidadeRelativa1/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa1/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
-            pontoDeOrvalho2 = (243.04*(log(umidadeRelativa2/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa2/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
+            //pontoDeOrvalho2 = (243.04*(log(umidadeRelativa2/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa2/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
             
             itgu1 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho1) + 41.5;
-            itgu2 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho2) + 41.5;
+            //itgu2 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho2) + 41.5;
 
             ibutg1 = (0.7*temperaturaDeBulboUmido) + (0.3*temperaturaDeGlobo);
             ibutg2 = (0.7*temperaturaDeBulboUmido) + (0.2*temperaturaDeGlobo) + (0.1*temperaturaDeBulboSeco);
@@ -153,26 +144,26 @@ void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t
             {
                 temperaturaDeBulboUmidoMin = temperaturaDeBulboUmido;
             }
-            if (umidadeRelativa2 > umidadeMax)
+            if (umidadeRelativa1 > umidadeMax)
             {
-                umidadeMax = umidadeRelativa2;
-            }else if (umidadeRelativa2 < umidadeMin)
+                umidadeMax = umidadeRelativa1;
+            }else if (umidadeRelativa1 < umidadeMin)
             {
-                umidadeMin = umidadeRelativa2;
+                umidadeMin = umidadeRelativa1;
             }
-            if (itgu2 > itguMax)
+            if (itgu1 > itguMax)
             {
-                itguMax = itgu2;
-            }else if (itgu2 < itguMin)
+                itguMax = itgu1;
+            }else if (itgu1 < itguMin)
             {
-                itguMin = itgu2;
+                itguMin = itgu1;
             }
-            if (itu2 > ituMax)
+            if (itu1 > ituMax)
             {
-                ituMax = itu2;
+                ituMax = itu1;
             }else if (itu2 < ituMin)
             {
-                ituMin = itu2;
+                ituMin = itu1;
             }
             if (temperaturaDeGlobo > globoMax)
             {
@@ -181,12 +172,12 @@ void VariaveisTermicas::atualizaVariaveis(HTU21D &htu21d, Animal animal, uint8_t
             {
                 globoMin = temperaturaDeGlobo;
             }
-            if (pontoDeOrvalho2 > orvalhoMax)
+            if (pontoDeOrvalho1 > orvalhoMax)
             {
-                orvalhoMax = pontoDeOrvalho2;
-            }else if (pontoDeOrvalho2 < orvalhoMin)
+                orvalhoMax = pontoDeOrvalho1;
+            }else if (pontoDeOrvalho1 < orvalhoMin)
             {
-                orvalhoMin = pontoDeOrvalho2;
+                orvalhoMin = pontoDeOrvalho1;
             } 
         }else
         {

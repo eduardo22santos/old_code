@@ -683,7 +683,7 @@ void setup()
     globoNegro.begin();
     bulboSeco.begin();
     bulboUmido.begin();
-    htu21d.begin();
+    //htu21d.begin();
 
     //if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (!bmp.begin(0x76))
@@ -784,7 +784,7 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
         } while (dadosLocais.falhaSensores || n >= 10);
         
 
@@ -844,7 +844,7 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
         } while (dadosLocais.falhaSensores || n >= 10);
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
@@ -868,7 +868,7 @@ void setup()
                 dadosLocais.globo = globoNegro.getTempCByIndex(0);
                 dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
                 dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
             } while (dadosLocais.falhaSensores || n >= 10);      
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
@@ -885,7 +885,7 @@ void setup()
                 dadosLocais.globo = globoNegro.getTempCByIndex(0);
                 dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
                 dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
             } while (dadosLocais.falhaSensores || n >= 10);
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
@@ -1005,7 +1005,7 @@ void loop()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
         } while (dadosLocais.falhaSensores || n >= 10);
         
         intervaloLerVariaveis = currentMillis;
@@ -1596,11 +1596,11 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
         String enviar = String("field1="+String(indices.temperaturaDeBulboSeco) +
                         "&field2="+String(indices.temperaturaDeBulboUmido)+
                         "&field3="+String(indices.temperaturaDeGlobo)+
-                        "&field4="+String(indices.umidadeRelativa2)+
+                        "&field4="+String(indices.pressao)+
                         "&field5="+String(indices.umidadeRelativa1)+
                         "&field6="+String(indices.itu1)+
                         "&field7="+String(indices.itgu1)+
-                        "&field8="+String(indices.ibutg1)+"&status=MQTTPUBLISH");
+                        "&field8="+String(indices.falhaSensores)+"&status=MQTTPUBLISH");
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
     }else if(config.plataforma == Original)
     {
