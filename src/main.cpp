@@ -33,7 +33,10 @@
 #include <PubSubClient.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Fonts/FreeSerif12pt7b.h>
+#include <Fonts/FreeMono24pt7b.h>
+#include <Fonts/FreeMonoOblique9pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/Org_01.h>
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_BMP280.h>
 #include <Button2.h> //No gitHub ha uma versao mais recente
@@ -86,11 +89,6 @@ TaskHandle_t tarefa_salvar;
  */
 TaskHandle_t tarefa_enviar_mqtt;
 /**
- * @brief indentificador taskHandle_d da terefa que irá fazer a leitura dos sensores
- * 
- */
-TaskHandle_t tarefa_ler_variaveis;
-/**
  * @brief indentificador taskHandle_d da terefa que irá fazer a reconexão com o wifi e servidor
  * 
  */
@@ -113,13 +111,6 @@ void tarefaSalvarSd(void * pvParameters);
  * @param pvParameters 
  */
 void tarefaEnviarMqtt(void * pvParameters);
-
-/**
- * @brief faz a leitura dos sensores
- * 
- * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
- */
-void lerSensores(void * pvParameters);
 /**
  * @brief Faz a leitura do botão de interação, tornando mais inteligente e possibitando funções multi cliques
  * 
@@ -144,12 +135,6 @@ void tarefaHttp(void * pvParameters);
  * @param variaveisTermicas objeto contendo os dados ambientais
  */
 void tarefaSalvar(VariaveisTermicas variaveisTermicas);
-
-/**
- * @brief Semáforo para evitar acionamento simutâneo da função atualizarVariaveis da biblioteca indices
- * 
- */
-SemaphoreHandle_t xSemaforo_atualizar_indices;
 
 /**********************************************************
  * CONFIGURACOES DOS SENSORES DE TEMPERATURA E PRESSÃO
@@ -182,13 +167,13 @@ DallasTemperature bulboSeco(&principal);
  * 
  * @return DallasTemperature 
  */
-DallasTemperature globoNegro(&secundario);
+DallasTemperature globoNegro(&terciario);
 /**
  * @brief objeto para manipulação e leitura do sensor de bulbo umido
  * 
  * @return DallasTemperature 
  */
-DallasTemperature bulboUmido(&terciario);
+DallasTemperature bulboUmido(&secundario);
 /**
  * @brief Objeto para manipulação e leitura do sensor de umidade e temperatura HTU21D
  * 
@@ -490,6 +475,11 @@ unsigned long ledIndicativo = 250;
  * 
  */
 unsigned long ledIndicadorInternet = 0;
+/**
+ * @brief ajusta o intervalo entre as mudanças das telas
+ * 
+ */
+unsigned long mudarTela = 0;
 /***************************************************
  * CONFIGURACOES DO MODO DEEP SLEEP
  * **************************************************
@@ -602,18 +592,6 @@ void tarefaEnviarMqtt(void * pvParameters)
     enviarMqtt(configuracao, dadosLocais);    
     vTaskDelete(NULL);
 }
-void lerSensores(void * pvParameters)
-{
-    
-    xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY);
-    dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-    if (dadosLocais.erroRtc)
-    {
-        esp_restart();
-    }  
-    xSemaphoreGive(xSemaforo_atualizar_indices);
-    vTaskDelete(NULL);
-}
 void reconectarRede(void * pvParameters)
 {
     
@@ -634,27 +612,25 @@ void setup()
     pinMode(LED_AMARELO, OUTPUT);
     digitalWrite(LED_VERDE, HIGH);
 
-    //iniciando os semáforos
-    xSemaforo_atualizar_indices = xSemaphoreCreateMutex();
-
     //inicializa a tela
     display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x64 
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
-    display.setFont(&FreeSerif12pt7b);
+    display.setFont(&FreeMono24pt7b);
     display.clearDisplay();
-    display.setCursor(25,24);
-    display.print("LAMOT");
-    display.setCursor(45,50);
-    display.print("UFS");
+    display.setCursor(5,30);
+    display.print("GMAQ");
+    display.setFont(&FreeMonoOblique9pt7b);
+    display.setCursor(0,54);
+    display.print("Version 1.2");
     display.display();
-    display.setFont(NULL);
+
 
     //testa o catao de memoria tornando obrigatorio o uso
     if(!SD.begin())
     {
         display.clearDisplay();
-        display.setCursor(0,0);
+        display.setCursor(0,11);
         display.print("SD FALHOU!\nENSIRA O CARTAO SD!");
         display.display();
         while (!SD.begin())
@@ -671,7 +647,7 @@ void setup()
     if(!SPIFFS.begin())
     {
         display.clearDisplay();
-        display.setCursor(0,0);
+        display.setCursor(0,11);
         display.print("SPIFFS FALHOU!\nPROCURE AJUDA!");
         display.display();
         while (!SPIFFS.begin())
@@ -689,8 +665,8 @@ void setup()
     if(!relogio.begin())
     {
         display.clearDisplay();
-        display.setCursor(0,0);
-        display.print("MODULO RTC FALHOU!\nOU ESTA DESCONECTADO!");
+        display.setCursor(0,11);
+        display.print("MODULO RELOGIO\n FALHOU!\nOU ESTA\n DESCONECTADO!");
         display.display();
         while(!relogio.begin())
         {
@@ -713,8 +689,8 @@ void setup()
     if (!bmp.begin(0x76))
     {
         display.clearDisplay();
-        display.setCursor(0,0);
-        display.print("MODULO BME FALHOU!\nOU ESTA DESCONECTADO!");
+        display.setCursor(0,11);
+        display.print("SENSOR DE\n PRESSAO FALHOU!\nOU ESTA\n DESCONECTADO!");
         display.display();
         Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
                       "try a different address!"));
@@ -797,13 +773,20 @@ void setup()
     if (salvarHorarioMeiaNoite)
     {
         salvarHorarioMeiaNoite = false;
-        bulboSeco.requestTemperatures();
-        globoNegro.requestTemperatures();
-        bulboUmido.requestTemperatures();
-        dadosLocais.globo = globoNegro.getTempCByIndex(0);
-        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-        dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        uint8_t n = 0;
+        do
+        {
+            n++;
+            bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            delay(750);
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        } while (dadosLocais.falhaSensores || n >= 10);
+        
 
         char horarioArquivo[9] = "hh:mm:ss";
         char dataArquivo[11] = "DD/MM/YYYY";
@@ -829,10 +812,10 @@ void setup()
         if (!configuracoesNoBoot && internetAtiva)
         {
             display.clearDisplay();
-            display.setCursor(0,0);
+            display.setCursor(0,11);
             display.print("VERIFICANDO RTC...");
             display.display();
-            display.setCursor(0,20);
+            display.setCursor(0,21);
             display.print(atualizarRtc(false));
             display.display();
             vTaskDelay(2000/portTICK_PERIOD_MS); 
@@ -850,13 +833,19 @@ void setup()
     if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
     {
         SD.remove(arquivoMaxMinJson);
-        bulboSeco.requestTemperatures();
-        globoNegro.requestTemperatures();
-        bulboUmido.requestTemperatures();
-        dadosLocais.globo = globoNegro.getTempCByIndex(0);
-        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-        dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);        dadosLocais.zeraMaxMin();
+        uint8_t n = 0;
+        do
+        {
+            n++;
+            bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            delay(750);
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        } while (dadosLocais.falhaSensores || n >= 10);
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
         File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
@@ -868,24 +857,36 @@ void setup()
         // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
         if (!SD.exists(arquivoMaxMinJson))
         {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);            
+            uint8_t n = 0;
+            do
+            {
+                n++;
+                bulboSeco.requestTemperatures();
+                globoNegro.requestTemperatures();
+                bulboUmido.requestTemperatures();
+                delay(750);
+                dadosLocais.globo = globoNegro.getTempCByIndex(0);
+                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            } while (dadosLocais.falhaSensores || n >= 10);      
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
         {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+           uint8_t n = 0;
+            do
+            {
+                n++;
+                bulboSeco.requestTemperatures();
+                globoNegro.requestTemperatures();
+                bulboUmido.requestTemperatures();
+                delay(750);
+                dadosLocais.globo = globoNegro.getTempCByIndex(0);
+                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            } while (dadosLocais.falhaSensores || n >= 10);
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
     }
@@ -906,10 +907,10 @@ void setup()
     if (dadosLocais.horario.year()==2000 || dadosLocais.erroRtc)
     {
         display.clearDisplay();
-        display.setCursor(0,0);
-        display.print("VERIFICANDO RTC...");
+        display.setCursor(0,11);
+        display.print("SINCRONIZANDO\n HORARIO!");
         display.display();
-        display.setCursor(0,20);
+        display.setCursor(0,21);
         if (!configuracoesNoBoot && internetAtiva)
         {
             display.print(atualizarRtc(false));
@@ -923,8 +924,8 @@ void setup()
     if (!configuracoesNoBoot && internetAtiva)
     {   
         display.clearDisplay();
-        display.setCursor(0,0);
-        display.print("CONECTANDO AO WI-FI!");
+        display.setCursor(0,11);
+        display.print("CONECTANDO A REDE\n WI-FI!");
         display.display();
         WiFi.disconnect(true);  //disconnect form wifi to set new wifi connection
         WiFi.mode(WIFI_STA); //init wifi mode
@@ -972,66 +973,67 @@ void setup()
         configuracoesNoBoot = false;
         delay(240000);
     }
-     //Configura o canal 0 com frequência de 312500 Hz
-    sigmaDeltaSetup(0, 312500);
-    //Anexa o pino 18 (GPIO18) ao canal 0
-    sigmaDeltaAttachPin(15,0);
-    //inicializa o canal 0 para desativado
-    sigmaDeltaWrite(0, 0);
+
+    //Configurações de pwm do pino 15
+        //Configura o canal 0 com frequência de 312500 Hz
+        sigmaDeltaSetup(0, 312500);
+        //Anexa o pino 18 (GPIO18) ao canal 0
+        sigmaDeltaAttachPin(15,0);
+        //inicializa o canal 0 para desativado
+        sigmaDeltaWrite(0, 0);
 }
     
 void loop()
 {
     //Cria uma varial que gerencia o controle de tempo no loop
     unsigned long currentMillis = millis();
+    unsigned long diferenca;
     /**
      * @brief Faz a leitura dos sensores e cauculo dos índices a cada 10 segundos
      * 
      */
-    if ((currentMillis - intervaloLerVariaveis) >= long(10000))
-    {
-        intervaloLerVariaveis = currentMillis;
-        bulboSeco.requestTemperatures();
-        globoNegro.requestTemperatures();
-        bulboUmido.requestTemperatures();
-        dadosLocais.globo = globoNegro.getTempCByIndex(0);
-        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+    diferenca = currentMillis - intervaloLerVariaveis;
+    if ( diferenca >= long(10000))
+    {   uint8_t n = 0;
+        do
+        {
+            n++;
+            bulboSeco.requestTemperatures();
+            bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        } while (dadosLocais.falhaSensores || n >= 10);
         
-        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);        
-    }else if(variaveis.erroRtc &&  (currentMillis - intervaloLerVariaveis) >= long(1000))
-    {
         intervaloLerVariaveis = currentMillis;
-        bulboSeco.requestTemperatures();
-        globoNegro.requestTemperatures();
-        bulboUmido.requestTemperatures();
-        dadosLocais.globo = globoNegro.getTempCByIndex(0);
-        dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-        dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-        xTaskCreatePinnedToCore(lerSensores, "lerSensores", 10000, NULL, 5, &tarefa_ler_variaveis,0);
+       
     } 
     /**
      * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
      * 
      */
-    if ((currentMillis - intervaloSalvarDados) >= long(configuracao.intervaloSalvar*1000))
+    diferenca = currentMillis - intervaloSalvarDados;
+    if ( diferenca >= long(configuracao.intervaloSalvar*1000))
     {
-        intervaloSalvarDados = currentMillis;
-
         xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
+        intervaloSalvarDados = currentMillis;
     }
     /**
      * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
      * 
      */
-    if (internetEstado && (currentMillis - intervaloEnviarDados) >= long(configuracao.intervaloOnline*1000))
+    diferenca = currentMillis - intervaloEnviarDados;
+    if (internetEstado && diferenca >= long(configuracao.intervaloOnline*1000))
     {
-        intervaloEnviarDados = currentMillis;
         //MQTT
         if (internetEstado)
         {
             xTaskCreatePinnedToCore(tarefaEnviarMqtt, "tarefaEnviarMqtt", 10000, (void*)&dadosLocais, 2, &tarefa_salvar,0);
         }
+        intervaloEnviarDados = currentMillis;
     }
 
     /**
@@ -1043,93 +1045,144 @@ void loop()
     if(currentMillis - intervaloAtualizacaoTela >= long(1000))
     {           
         DateTime tempoAtual;
-        intervaloAtualizacaoTela = currentMillis;
-        
-            if((xSemaphoreTake(xSemaforo_atualizar_indices, portMAX_DELAY))== pdTRUE)
-            {
-                /**
-                 * @brief essa instrução verifica se há erros nos em algum dos três sensores DS18B20 
-                 * e alterna para tela b se necessário;
-                 */
-                
-                variaveis = dadosLocais;  
-                tempoAtual = relogio.now();
-            }
-            xSemaphoreGive(xSemaforo_atualizar_indices);
-        
+         
+        tempoAtual = relogio.now();
 
         if (variaveis.falhaSensores)
         {
             alternar = 'b';
-        }else
+        }else if((currentMillis - mudarTela) >= long(5000))
         {
-            alternar = 'a';
+            switch (alternar)
+            {
+            case 'a':
+                alternar = 'c';
+                break;
+            case 'c':
+                alternar = 'd';
+                break;
+            case 'd':
+                alternar = 'e';
+                break;
+            case 'e':
+                alternar = 'f';
+                break;
+            default:
+                alternar = 'a';
+                break;
+            }
+            mudarTela = currentMillis;
         }
 
         // TELA A  
         if(alternar == 'a')
         {           
             display.clearDisplay();
-            display.setCursor(0,0);
-            display.printf("BS %.0f BU %.0f GN %.0f",variaveis.temperaturaDeBulboSeco
-                                                    ,variaveis.temperaturaDeBulboUmido
-                                                    ,variaveis.temperaturaDeGlobo);
-            display.setCursor(0,9);
-            display.printf("U1 %.0f%% U2 %.0f%% h %.0f",variaveis.umidadeRelativa1
-                                                            ,variaveis.umidadeRelativa2
-                                                            ,variaveis.pressao);
-            display.setCursor(0,18);
-            display.printf("A ITU %.0f ITGU %.0f",variaveis.itu1, variaveis.itgu1);
-            display.setCursor(0,27);
-            display.printf("B ITU %.0f ITGU %.0f",variaveis.itu2, variaveis.itgu2);
-            display.setCursor(0,36);
-            display.printf("IBUTG1 %.0f IBUTG2 %.0f",variaveis.ibutg1, variaveis.ibutg2);
-            display.setCursor(0,45);
-            char horarioArquivo[21] = " hh:mm:ss DD/MM/YYYY";
+            display.setFont(&FreeMono9pt7b);
+            display.setCursor(0,11);
+            display.printf("BS %.0f BU %.0f \n   GN %.0f"
+                    ,dadosLocais.temperaturaDeBulboSeco, dadosLocais.temperaturaDeBulboUmido
+                    , dadosLocais.temperaturaDeGlobo);
+            display.setCursor(0,50);
+            char dataArquivo[12] = " DD:MM:YYYY";
+            display.print(tempoAtual.toString(dataArquivo));
+            display.setCursor(0,63);
+            char horarioArquivo[11] = "  hh:mm:ss";
             display.print(tempoAtual.toString(horarioArquivo));
-            display.setCursor(0,54);
-            display.setTextSize(1);
+            display.display();   
+        }
+        // TELA c  
+        else if(alternar == 'c')
+        {           
+            display.clearDisplay();
+            display.setFont(&FreeMono9pt7b);
+            display.setCursor(0,11);
+            display.printf("  U1 %.0f%%\n  U2 %.0f%%\n  hPa %.0f"
+                    ,dadosLocais.umidadeRelativa1, dadosLocais.umidadeRelativa2
+                    , dadosLocais.pressao);
+            display.setCursor(0,63);
+            char horarioArquivo[11] = "  hh:mm:ss";
+            display.print(tempoAtual.toString(horarioArquivo));
+            display.display();  
+        }
+        // TELA D  
+        else if(alternar == 'd')
+        {           
+            display.clearDisplay();
+            display.setFont(&FreeMono9pt7b);
+            display.setCursor(0,11);
+            display.printf("  ITU1 %.0f\n  ITU2 %.0f\n  IBUTG1 %.0f"
+                    ,dadosLocais.itu1, dadosLocais.itu2
+                    , dadosLocais.ibutg1);
+            display.setCursor(0,63);
+            char horarioArquivo[11] = "  hh:mm:ss";
+            display.print(tempoAtual.toString(horarioArquivo));
+            display.display();  
+        }
+        // TELA E  
+        else if(alternar == 'e')
+        {           
+            display.clearDisplay();
+            display.setFont(&FreeMono9pt7b);
+            display.setCursor(0,11);
+            display.printf("  ITGU1 %.0f\n  ITGU2 %.0f\n  IBUTG2 %.0f"
+                    ,dadosLocais.itgu1, dadosLocais.itgu2
+                    , dadosLocais.ibutg2);
+            display.setCursor(0,63);
+            char horarioArquivo[11] = "  hh:mm:ss";
+            display.print(tempoAtual.toString(horarioArquivo));
+            display.display();  
+        }
+        // TELA F  
+        else if(alternar == 'f')
+        {           
+            display.clearDisplay();
+            display.setFont(&FreeMono9pt7b);
+            display.setCursor(12,11);
             if (WiFi.status()==WL_CONNECTED)
             {
                 display.print(WiFi.localIP());
-                display.setCursor(80,54);
+                display.setCursor(0,41);
                 if (internetEstado == true)
                 {
-                    display.print("ON!");
+                    display.print("SERVIDOR ON!");
                 }else
                 {    
-                    display.print("OFF!");
+                    display.print("SERVISOR OFF");
                 }
             }else
             {
                 if (internetAtiva)
                 {
-                    display.print("TENTANDO CONEXAO!!!");
+                    display.print("CONECTANDO\n  NA REDE...");
                 }else
                 {                
-                    display.print("WIFI DESLIGADO!");
+                    display.print("   WI-FI\n DESLIGADO! ");
                 }
             }
-            display.display();  
-            
+            display.setCursor(0,63);
+            char horarioArquivo[11] = "  hh:mm:ss";
+            display.print(tempoAtual.toString(horarioArquivo));
+            display.display();    
         }
         //TELA B
         else if(alternar == 'b')
         {   
             display.clearDisplay();
-            display.setCursor(0,0);
+            display.setFont(NULL);
+            display.setCursor(0,1);
             display.print("*FALHAS DE SENSORES*");
-            display.setCursor(0,10);
+            display.setCursor(0,11);
             display.print("SENSOR PRESSAO");
-            display.setCursor(0,20);
+            display.setCursor(0,21);
             display.print("Bulbo Seco ");
-            display.setCursor(0,30);
+            display.setCursor(0,31);
             display.print("Bulbo Umido ");
-            display.setCursor(0,40);
+            display.setCursor(0,41);
             display.print("Globo Negro ");
-            display.setCursor(0,50);
+            display.setCursor(0,51);
             display.print("htu21d");
-            display.setCursor(84,10);
+            display.setCursor(84,11);
             if (variaveis.erroSensorPressao) 
             {
                 display.printf("FALHOU!");
@@ -1137,7 +1190,7 @@ void loop()
             {
                 display.printf("- OK");
             }
-            display.setCursor(84,20);
+            display.setCursor(84,21);
             if (variaveis.erroSensorTbs) 
             {
                 display.printf("FALHOU!");
@@ -1145,7 +1198,7 @@ void loop()
             {
                 display.printf("- OK");
             }
-            display.setCursor(84,30);
+            display.setCursor(84,31);
             if (variaveis.erroSensorUmidade) 
             {
                 display.printf("FALHOU!");
@@ -1153,7 +1206,7 @@ void loop()
             {
                 display.printf("- OK");
             }
-            display.setCursor(84,40);
+            display.setCursor(84,41);
             if (variaveis.erroSensorGlobo) 
             {
                 display.printf("FALHOU!");
@@ -1161,7 +1214,7 @@ void loop()
             {
                 display.printf("- OK");
             }
-            display.setCursor(84,50);
+            display.setCursor(84,51);
             if (variaveis.erroSensorUmidade2) 
             {
                 display.printf("FALHOU!");
@@ -1170,13 +1223,13 @@ void loop()
                 display.printf("- OK");
             }
             display.display();
-        }  
+        } 
+        intervaloAtualizacaoTela = currentMillis; 
     }
 
     //FICA PISCANDO O LED PARA MOSTRAR A ATIVIDADE DO LOOP_RELOGIO
     if ((currentMillis - ledIndicativo) >= long(250)) 
     {
-        ledIndicativo = currentMillis;
         if(digitalRead(LED_VERDE) == HIGH)
         {
             digitalWrite(LED_VERDE, LOW);
@@ -1184,13 +1237,13 @@ void loop()
         {
             digitalWrite(LED_VERDE, HIGH);
         }
+        ledIndicativo = currentMillis;
     }
 
     if (internetEstado)
     {
         if ((currentMillis - ledIndicadorInternet) >= long(250)) 
         {
-            ledIndicadorInternet = currentMillis;
             if(digitalRead(LED_AMARELO) == HIGH)
             {
                 sigmaDeltaWrite(0, 0);
@@ -1198,6 +1251,7 @@ void loop()
             {
                 sigmaDeltaWrite(0, 255);
             }           
+            ledIndicadorInternet = currentMillis;
         }
     }
 
@@ -1239,9 +1293,10 @@ void loopConfiguracao(void * pvParameters)
         }
         
         display.clearDisplay();
+        display.setFont(NULL);
+        display.setCursor(0,1);
         display.setTextSize(2);
-        display.setCursor(16,0);
-        display.print("SETTINGS");
+        display.print("  SETTINGS  ");
         display.setTextSize(1);
         display.setCursor(0,20);
         if (indice == 0)
@@ -1302,11 +1357,11 @@ void loopConfiguracao(void * pvParameters)
         {   
             redefinir();
             display.clearDisplay();
-            display.setCursor(0,0);
+            display.setCursor(0,11);
             display.print("AGUARDE...");
             display.display();
             
-            display.setCursor(0,20);
+            display.setCursor(0,31);
             display.print(atualizarRtc(false));
             display.display();
             vTaskDelay(5000/portTICK_PERIOD_MS);
@@ -1316,7 +1371,7 @@ void loopConfiguracao(void * pvParameters)
         if (dois)
         {
             display.clearDisplay();
-            display.setCursor(0,0);
+            display.setCursor(0,11);
             display.print("Salvando...");
             display.display();
             SPIFFS.begin();
@@ -1332,7 +1387,7 @@ void loopConfiguracao(void * pvParameters)
                 SPIFFS.remove(arquivoDeConfiguracao);
                 exportConfiration(configuracao);
             }
-            display.setCursor(0,10);
+            display.setCursor(0,21);
             display.print("SUCESSO!\nREINICIANDO...");
             display.display();
             SPIFFS.end();
@@ -1345,8 +1400,13 @@ void loopConfiguracao(void * pvParameters)
             redefinir();
             while(true)
             {
+                if (millis() >= long(60000))
+                {
+                    esp_restart();
+                }
+                
                     display.clearDisplay();
-                    display.setCursor(0,0);
+                    display.setCursor(0,11);
                     if (indice == 0)
                     {
                         display.print("-> ITU GERAL");
@@ -1354,7 +1414,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         display.print("   ITU GERAL");
                     }
-                    display.setCursor(0,10);
+                    display.setCursor(0,21);
                     if(indice == 1)
                     {
                         display.print("-> ITU BOVINO");
@@ -1362,7 +1422,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         display.print("   ITU BOVINO");
                     }
-                    display.setCursor(0,20);
+                    display.setCursor(0,31);
                     if(indice == 2)
                     {
                         display.print("-> ITU PARA FRANGO");
@@ -1370,7 +1430,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         display.print("   ITU PARA FRANGO");
                     }
-                    display.setCursor(0,30);
+                    display.setCursor(0,41);
                     if(indice == 3)
                     {
                         display.print("-> ITU PARA COELHO");
@@ -1402,7 +1462,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         SPIFFS.begin();
                         display.clearDisplay();
-                        display.setCursor(0,0);
+                        display.setCursor(0,11);
                         display.print("Salvando...");
                         display.display();
                         
@@ -1410,7 +1470,7 @@ void loopConfiguracao(void * pvParameters)
                         SPIFFS.remove(arquivoDeConfiguracao);
                         exportConfiration(configuracao); 
 
-                        display.setCursor(0,10);
+                        display.setCursor(0,21);
                         display.print("SUCESSO!\nREINICIANDO...");
                         display.display();
                         SPIFFS.end();
@@ -1421,7 +1481,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         SPIFFS.begin();
                         display.clearDisplay();
-                        display.setCursor(0,0);
+                        display.setCursor(0,11);
                         display.print("Salvando...");
                         display.display();
                         
@@ -1429,7 +1489,7 @@ void loopConfiguracao(void * pvParameters)
                         SPIFFS.remove(arquivoDeConfiguracao);
                         exportConfiration(configuracao); 
 
-                        display.setCursor(0,10);
+                        display.setCursor(0,21);
                         display.print("SUCESSO!\nREINICIANDO...");
                         display.display();
                         SPIFFS.end();
@@ -1440,7 +1500,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         SPIFFS.begin();
                         display.clearDisplay();
-                        display.setCursor(0,0);
+                        display.setCursor(0,11);
                         display.print("INDISPONIVEL");//"Salvando...");
                         display.display();
                         /*
@@ -1460,7 +1520,7 @@ void loopConfiguracao(void * pvParameters)
                     {
                         SPIFFS.begin();
                         display.clearDisplay();
-                        display.setCursor(0,0);
+                        display.setCursor(0,11);
                         display.print("INDISPONIVEL");//"Salvando...");
                         display.display();
                         /*
