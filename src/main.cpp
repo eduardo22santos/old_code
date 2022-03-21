@@ -785,7 +785,7 @@ void setup()
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
             dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+        } while (dadosLocais.falhaSensores && n <=  10);
         
 
         char horarioArquivo[9] = "hh:mm:ss";
@@ -845,7 +845,7 @@ void setup()
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
             dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+        } while (dadosLocais.falhaSensores  && n <= 10);
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
         File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
@@ -869,7 +869,7 @@ void setup()
                 dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
                 dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
                 dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-            } while (dadosLocais.falhaSensores || n >= 10);      
+            } while (dadosLocais.falhaSensores  && n <= 10);      
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
@@ -886,7 +886,7 @@ void setup()
                 dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
                 dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
                 dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-            } while (dadosLocais.falhaSensores || n >= 10);
+            } while (dadosLocais.falhaSensores  && n <= 10);
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
     }
@@ -1006,7 +1006,7 @@ void loop()
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
             dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+        } while (dadosLocais.falhaSensores  && n <= 10);
         
         intervaloLerVariaveis = currentMillis;
        
@@ -1148,7 +1148,7 @@ void loop()
                     display.print("SERVIDOR ON!");
                 }else
                 {    
-                    display.print("SERVISOR OFF");
+                    display.print("SERVIDOR OFF");
                 }
             }else
             {
