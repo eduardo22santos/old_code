@@ -655,7 +655,7 @@ void setup()
     display.print("GMAQ");
     display.setFont(&FreeMonoOblique9pt7b);
     display.setCursor(0,54);
-    display.print("Version 1.2");
+    display.print("Version BETA");
     display.display();
 
 
@@ -1592,25 +1592,36 @@ void desativaLoopRelogio()
 }
 void reconnect(Configuracao config)
 {
-    while(WiFi.status() != WL_CONNECTED) 
-    {
-        WiFi.reconnect();
-        sigmaDeltaWrite(0, 255);
-        vTaskDelay(10000/ portTICK_PERIOD_MS);
-    }
+    unsigned long reiniciarWifi = millis();
     
-    while (!client.connected())
+    while(true) 
     {
-        client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
-        client.setCallback(callback);
+        //testa a conexão wifi e com o servidor mqtt
+        if (WiFi.status() != WL_CONNECTED)
+        {
+            WiFi.reconnect();
+            sigmaDeltaWrite(0, 255);
+            vTaskDelay(10000/ portTICK_PERIOD_MS);
+        }else if (!client.connected())
+        {
+            client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
+            client.setCallback(callback);
 
-        if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
+            if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
+            {
+                internetEstado = true;
+                break;
+            } else
+            {
+                internetEstado = false;
+                vTaskDelay(5000/ portTICK_PERIOD_MS);
+            }
+        }
+
+        //reinicia a placa após 10 minutos tentando se reconectar
+        if ((millis() - reiniciarWifi)>= long(600000))
         {
-            internetEstado = true;
-        } else
-        {
-            internetEstado = false;
-            vTaskDelay(5000/ portTICK_PERIOD_MS);
+            esp_restart();
         }
     }
 }
