@@ -600,6 +600,39 @@ void reconectarRede(void * pvParameters)
     vTaskDelete(NULL);
 }
 VariaveisTermicas variaveis;
+
+String logErro(VariaveisTermicas variaveis)
+{   
+    String status;
+    if (variaveis.erroSensorGlobo)
+    {
+        status = "erro globo";
+        return status;
+    }else if (variaveis.erroSensorPressao)
+    {
+        status = "erro pressao";
+        return status;
+    }else if (variaveis.erroSensorTbs)
+    {
+        status = "erro tbs";
+        return status;
+    }else if (variaveis.erroSensorUmidade)
+    {
+        status = "erro tbu";
+        return status;
+    }else if (variaveis.erroRtc)
+    {
+        status = "erro rtc";
+        return status;
+    }else
+    {
+        status = "tudo funcionando";
+        return status;
+    }
+    
+    
+    
+}
 void setup()
 {
     ////Serial para debug
@@ -683,7 +716,7 @@ void setup()
     globoNegro.begin();
     bulboSeco.begin();
     bulboUmido.begin();
-    htu21d.begin();
+    //htu21d.begin();
 
     //if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (!bmp.begin(0x76))
@@ -773,10 +806,8 @@ void setup()
     if (salvarHorarioMeiaNoite)
     {
         salvarHorarioMeiaNoite = false;
-        uint8_t n = 0;
-        do
+        for (size_t i = 0; i < 5; i++)
         {
-            n++;
             bulboSeco.requestTemperatures();
             globoNegro.requestTemperatures();
             bulboUmido.requestTemperatures();
@@ -784,8 +815,12 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        }
+        
+            
+            
+        
         
 
         char horarioArquivo[9] = "hh:mm:ss";
@@ -833,10 +868,8 @@ void setup()
     if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
     {
         SD.remove(arquivoMaxMinJson);
-        uint8_t n = 0;
-        do
+        for (size_t i = 0; i < 5; i++)
         {
-            n++;
             bulboSeco.requestTemperatures();
             globoNegro.requestTemperatures();
             bulboUmido.requestTemperatures();
@@ -844,8 +877,8 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        }
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
         File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
@@ -857,36 +890,32 @@ void setup()
         // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
         if (!SD.exists(arquivoMaxMinJson))
         {
-            uint8_t n = 0;
-            do
-            {
-                n++;
-                bulboSeco.requestTemperatures();
-                globoNegro.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                delay(750);
-                dadosLocais.globo = globoNegro.getTempCByIndex(0);
-                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-            } while (dadosLocais.falhaSensores || n >= 10);      
+           for (size_t i = 0; i < 5; i++)
+        {
+            bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            delay(750);
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        }  
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
         {
-           uint8_t n = 0;
-            do
-            {
-                n++;
-                bulboSeco.requestTemperatures();
-                globoNegro.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                delay(750);
-                dadosLocais.globo = globoNegro.getTempCByIndex(0);
-                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-            } while (dadosLocais.falhaSensores || n >= 10);
+          for (size_t i = 0; i < 5; i++)
+        {
+            bulboSeco.requestTemperatures();
+            globoNegro.requestTemperatures();
+            bulboUmido.requestTemperatures();
+            delay(750);
+            dadosLocais.globo = globoNegro.getTempCByIndex(0);
+            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        }
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
     }
@@ -994,10 +1023,7 @@ void loop()
      */
     diferenca = currentMillis - intervaloLerVariaveis;
     if ( diferenca >= long(10000))
-    {   uint8_t n = 0;
-        do
-        {
-            n++;
+    {   
             bulboSeco.requestTemperatures();
             bulboSeco.requestTemperatures();
             globoNegro.requestTemperatures();
@@ -1005,8 +1031,8 @@ void loop()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(htu21d, configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        } while (dadosLocais.falhaSensores || n >= 10);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+        
         
         intervaloLerVariaveis = currentMillis;
        
@@ -1048,7 +1074,7 @@ void loop()
          
         tempoAtual = relogio.now();
 
-        if (variaveis.falhaSensores)
+        if (dadosLocais.falhaSensores)
         {
             alternar = 'b';
         }else if((currentMillis - mudarTela) >= long(5000))
@@ -1148,7 +1174,7 @@ void loop()
                     display.print("SERVIDOR ON!");
                 }else
                 {    
-                    display.print("SERVISOR OFF");
+                    display.print("SERVIDOR OFF");
                 }
             }else
             {
@@ -1596,11 +1622,11 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
         String enviar = String("field1="+String(indices.temperaturaDeBulboSeco) +
                         "&field2="+String(indices.temperaturaDeBulboUmido)+
                         "&field3="+String(indices.temperaturaDeGlobo)+
-                        "&field4="+String(indices.umidadeRelativa2)+
+                        "&field4="+String(indices.pressao)+
                         "&field5="+String(indices.umidadeRelativa1)+
                         "&field6="+String(indices.itu1)+
                         "&field7="+String(indices.itgu1)+
-                        "&field8="+String(indices.ibutg1)+"&status=MQTTPUBLISH");
+                        "&field8="+String(indices.rtcTemperature)+"&status="+logErro(indices).c_str());
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
     }else if(config.plataforma == Original)
     {
