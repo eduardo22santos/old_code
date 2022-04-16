@@ -867,7 +867,10 @@ void setup()
     //Tambem cria o arquivo com as data salvas se não exitir e adiciona a data do dia corrente
     if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
     {
-        SD.remove(arquivoMaxMinJson);
+        if (SD.exists(arquivoMaxMinJson))
+        {
+            SD.remove(arquivoMaxMinJson);
+        }
         for (size_t i = 0; i < 5; i++)
         {
             bulboSeco.requestTemperatures();
@@ -890,17 +893,17 @@ void setup()
         // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
         if (!SD.exists(arquivoMaxMinJson))
         {
-           for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
-        }  
+            for (size_t i = 0; i < 5; i++)
+            {
+                bulboSeco.requestTemperatures();
+                globoNegro.requestTemperatures();
+                bulboUmido.requestTemperatures();
+                delay(750);
+                dadosLocais.globo = globoNegro.getTempCByIndex(0);
+                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
+                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
+                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            }  
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
         }else
