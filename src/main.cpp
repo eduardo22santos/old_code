@@ -1821,7 +1821,7 @@ String atualizarRtc(bool wifiLigado)
                 {
                     WiFi.reconnect();
                     vTaskDelay(5000/ portTICK_PERIOD_MS);
-                } while (WiFi.status()==WL_CONNECTED);   
+                } while (WiFi.status()!=WL_CONNECTED);   
             }
         }
         if (WiFi.status()==WL_CONNECTED)
