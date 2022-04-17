@@ -637,7 +637,6 @@ void setup()
 {
     ////Serial para debug
     Serial.begin(9600);
-    //vTaskDelay(1000/ portTICK_PERIOD_MS);
     Wire.begin(21,22);
     pinMode(LED_VERMELHO, OUTPUT);
     pinMode(LED_VERDE, OUTPUT);
@@ -655,9 +654,8 @@ void setup()
     display.print("GMAQ");
     display.setFont(&FreeMonoOblique9pt7b);
     display.setCursor(0,54);
-    display.print("Version BETA");
+    display.print("   1.3 BETA");
     display.display();
-
 
     //testa o catao de memoria tornando obrigatorio o uso
     if(!SD.begin())
@@ -717,8 +715,6 @@ void setup()
     bulboSeco.begin();
     bulboUmido.begin();
     //htu21d.begin();
-
-    //if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (!bmp.begin(0x76))
     {
         display.clearDisplay();
@@ -748,19 +744,6 @@ void setup()
                   Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
     
 
-
-    //Atualiza horario do aparelho e define o alarme
-    DateTime tempoAtual = relogio.now();
-    relogio.disable32K();
-    pinMode(CLOCK_INTERRUPT_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(CLOCK_INTERRUPT_PIN), onAlarm, FALLING);
-    relogio.clearAlarm(1);
-    relogio.clearAlarm(2);
-    relogio.writeSqwPinMode(DS3231_OFF);
-    relogio.disableAlarm(2);
-    zeroHora = DateTime(tempoAtual.year(),tempoAtual.month(),tempoAtual.day(),23,59,58);
-    relogio.setAlarm1(zeroHora,DS3231_A1_Hour); 
-
     //verifica se há arquivo de configuracao no sd card
     if(SD.exists("/config.json"))
     {
@@ -787,6 +770,37 @@ void setup()
     {
         configuracao = loadConfiguration(arquivoDeConfiguracao, display);//puxa o arquivo de configuracao json no cartao de memoria
     }
+
+    //se as variaves internetStatus e mqttStatus estiverem true no aquivo de configuracao, o wifi será ligado no setup
+    if (configuracao.mqttStatus && configuracao.internetStatus) internetAtiva = true; 
+    
+    //Testa o rtc para verificar o horario
+    DateTime verificaRtc = relogio.now();
+    if (!verificaRtc.isValid() || verificaRtc.year()==2000)
+    {
+        display.clearDisplay();
+        display.setCursor(0,11);
+        display.print("SINCRONIZANDO\n HORARIO!");
+        display.display();
+        display.setCursor(0,21);
+        
+        display.print(atualizarRtc(false));
+        display.display();
+        vTaskDelay(2000/portTICK_PERIOD_MS); 
+        ESP.restart();
+    }
+
+    //Atualiza horario do aparelho e define o alarme
+    DateTime tempoAtual = relogio.now();
+    relogio.disable32K();
+    pinMode(CLOCK_INTERRUPT_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(CLOCK_INTERRUPT_PIN), onAlarm, FALLING);
+    relogio.clearAlarm(1);
+    relogio.clearAlarm(2);
+    relogio.writeSqwPinMode(DS3231_OFF);
+    relogio.disableAlarm(2);
+    zeroHora = DateTime(tempoAtual.year(),tempoAtual.month(),tempoAtual.day(),23,59,58);
+    relogio.setAlarm1(zeroHora,DS3231_A1_Hour); 
 
     //Verifica se existe o arquivo datalog no cartao de memoria, criando-o caso contrario
     if (!SD.exists(arquivoDatalog_txt)) //verifica ou cria o arquivo datalog.txt
@@ -817,11 +831,6 @@ void setup()
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
             dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
         }
-        
-            
-            
-        
-        
 
         char horarioArquivo[9] = "hh:mm:ss";
         char dataArquivo[11] = "DD/MM/YYYY";
@@ -860,7 +869,6 @@ void setup()
             vTaskDelay(1000/portTICK_PERIOD_MS);
         }
     }
-
 
     //Verifica se ja existe um aquivo diario com a data atualizada pelo modulo rtc,
     //criando um novo arquivo caso nao exista um arquivo do dia corrente, e tambem atualizando o arquivo de maximas e minimasa
@@ -929,27 +937,6 @@ void setup()
         File file = SD.open(pasta + arquivoMaxMin, FILE_WRITE);
         file.close();
         appendFile(SD, pasta + arquivoMaxMin, maxMinCabecalho); 
-    }
-
-
-    //se as variaves internetStatus e mqttStatus estiverem true no aquivo de configuracao, o wifi será ligado no setup
-    if (configuracao.mqttStatus && configuracao.internetStatus) internetAtiva = true;
-
-    //Testa o rtc para verificar o horario
-    if (dadosLocais.horario.year()==2000 || dadosLocais.erroRtc)
-    {
-        display.clearDisplay();
-        display.setCursor(0,11);
-        display.print("SINCRONIZANDO\n HORARIO!");
-        display.display();
-        display.setCursor(0,21);
-        if (!configuracoesNoBoot && internetAtiva)
-        {
-            display.print(atualizarRtc(false));
-            display.display();
-            vTaskDelay(2000/portTICK_PERIOD_MS); 
-            ESP.restart();
-        }
     }
 
     //Inicia a conexao com internet se o usuario declarar internetStatus e mqttStatus como true no arquivo de configuracao

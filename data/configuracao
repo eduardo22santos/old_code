@@ -1,5 +1,5 @@
 {
-  "wifi_ssid":"EDUARDO 2",
+  "wifi_ssid":"EDUARDO",
   "wifi_senha": "16r04o18b",
   "wifi_status": true,
   "eduroam_login": "eduardo22santos@ufs.br",
@@ -9,9 +9,9 @@
   "mqtt_porta": 1883,
   "mqtt_senha": "WTGuR8JVoxPDu8FJTHZx5k0p",
   "mqtt_usuario": "LSQ2DiIANjcNAjc0NgsRFTo",
-  "mqtt_topico": "1451468",
+  "mqtt_topico": "1706071",
   "mqtt_device_id": "LSQ2DiIANjcNAjc0NgsRFTo",
-  "plataforma_status": false,
+  "plataforma_status": true,
   "intervalo_internet": 60,
   "intervalo_sd": 60,
   "fuso_horario": -3,
