@@ -654,7 +654,7 @@ void setup()
     display.print("GMAQ");
     display.setFont(&FreeMonoOblique9pt7b);
     display.setCursor(0,54);
-    display.print("   1.3 BETA");
+    display.print("   1.4 BETA");
     display.display();
 
     //testa o catao de memoria tornando obrigatorio o uso
@@ -714,7 +714,7 @@ void setup()
     globoNegro.begin();
     bulboSeco.begin();
     bulboUmido.begin();
-    //htu21d.begin();
+    htu21d.begin();
     if (!bmp.begin(0x76))
     {
         display.clearDisplay();
@@ -829,7 +829,7 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
         }
 
         char horarioArquivo[9] = "hh:mm:ss";
@@ -888,7 +888,7 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
         }
         salvarMaxMin(dadosLocais, arquivoMaxMinJson);
 
@@ -910,7 +910,7 @@ void setup()
                 dadosLocais.globo = globoNegro.getTempCByIndex(0);
                 dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
                 dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
             }  
             dadosLocais.zeraMaxMin();
             salvarMaxMin(dadosLocais, arquivoMaxMinJson);
@@ -925,7 +925,7 @@ void setup()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
         }
             lerMaxMin(dadosLocais, arquivoMaxMinJson);   
         }
@@ -1021,7 +1021,7 @@ void loop()
             dadosLocais.globo = globoNegro.getTempCByIndex(0);
             dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
             dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, bmp, configuracao.sensorBulboUmido, relogio);
+            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
         
         
         intervaloLerVariaveis = currentMillis;
@@ -1627,7 +1627,7 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
                         "&field5="+String(indices.umidadeRelativa1)+
                         "&field6="+String(indices.itu1)+
                         "&field7="+String(indices.itgu1)+
-                        "&field8="+String(indices.rtcTemperature)+"&status="+logErro(indices).c_str());
+                        "&field8="+String(indices.umidadeRelativa2)+"&status="+indices.horario.timestamp());
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
     }else if(config.plataforma == Original)
     {

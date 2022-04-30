@@ -154,7 +154,7 @@ struct VariaveisTermicas
      * e o valor da temperatura de bulbo ficará zerado
      * @param relogio objeto do modulo rtc DS3231
      */
-    void atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio);
+    void atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, HTU21D &htu21d,Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio);
     
     /**
      * @brief Calcula o itu de acordo com o animal especificado, se tipoDeSensor = false, índices que precisão da temperatura de bulbo umido serão adaptados para o itu geral

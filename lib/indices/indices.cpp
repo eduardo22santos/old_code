@@ -46,7 +46,7 @@ float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor, float umid
     }
 
 }
-void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
+void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, HTU21D &htu21d, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
 {
         //Atualiza o horario
         horario = relogio.now();
@@ -103,12 +103,18 @@ void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, A
         }
         
         //Verifica se há erro na leitura do sensor htu21d
-        
-        
-        
+        float umidade = htu21d.readHumidity();
+        if(umidade == 998.0)
+        {
+            erroSensorUmidade2 = true;
+        }else
+        {
+            umidadeRelativa2 = (umidade > 98)? 98 : umidade;
+            erroSensorUmidade2 = false;
+        }     
     
         //Calculos dos indices termicos
-        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroRtc)
+        if(!erroSensorGlobo && !erroSensorTbs && !erroSensorUmidade && !erroSensorPressao && !erroSensorUmidade2 && !erroRtc)
         {
             digitalWrite(LED_VERMELHO, LOW);
             falhaSensores = false;
@@ -118,13 +124,13 @@ void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, A
             
 
             itu1 = calculaItu(animal, tipoDeSensor, umidadeRelativa1);
-            //itu2 = calculaItu(animal, tipoDeSensor, umidadeRelativa2);
+            itu2 = calculaItu(animal, tipoDeSensor, umidadeRelativa2);
 
             pontoDeOrvalho1 = (243.04*(log(umidadeRelativa1/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa1/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
-            //pontoDeOrvalho2 = (243.04*(log(umidadeRelativa2/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa2/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
+            pontoDeOrvalho2 = (243.04*(log(umidadeRelativa2/100)+((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco))))/(17.625-log(umidadeRelativa2/100)-((17.625*temperaturaDeBulboSeco)/(243.04+temperaturaDeBulboSeco)));
             
             itgu1 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho1) + 41.5;
-            //itgu2 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho2) + 41.5;
+            itgu2 = temperaturaDeGlobo + (0.36 * pontoDeOrvalho2) + 41.5;
 
             ibutg1 = (0.7*temperaturaDeBulboUmido) + (0.3*temperaturaDeGlobo);
             ibutg2 = (0.7*temperaturaDeBulboUmido) + (0.2*temperaturaDeGlobo) + (0.1*temperaturaDeBulboSeco);
@@ -144,26 +150,26 @@ void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, A
             {
                 temperaturaDeBulboUmidoMin = temperaturaDeBulboUmido;
             }
-            if (umidadeRelativa1 > umidadeMax)
+            if (umidadeRelativa2 > umidadeMax)
             {
-                umidadeMax = umidadeRelativa1;
-            }else if (umidadeRelativa1 < umidadeMin)
+                umidadeMax = umidadeRelativa2;
+            }else if (umidadeRelativa2 < umidadeMin)
             {
-                umidadeMin = umidadeRelativa1;
+                umidadeMin = umidadeRelativa2;
             }
-            if (itgu1 > itguMax)
+            if (itgu2 > itguMax)
             {
-                itguMax = itgu1;
-            }else if (itgu1 < itguMin)
+                itguMax = itgu2;
+            }else if (itgu2 < itguMin)
             {
-                itguMin = itgu1;
+                itguMin = itgu2;
             }
-            if (itu1 > ituMax)
+            if (itu2 > ituMax)
             {
-                ituMax = itu1;
+                ituMax = itu2;
             }else if (itu2 < ituMin)
             {
-                ituMin = itu1;
+                ituMin = itu2;
             }
             if (temperaturaDeGlobo > globoMax)
             {
@@ -172,13 +178,13 @@ void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, A
             {
                 globoMin = temperaturaDeGlobo;
             }
-            if (pontoDeOrvalho1 > orvalhoMax)
+            if (pontoDeOrvalho2 > orvalhoMax)
             {
-                orvalhoMax = pontoDeOrvalho1;
-            }else if (pontoDeOrvalho1 < orvalhoMin)
+                orvalhoMax = pontoDeOrvalho2;
+            }else if (pontoDeOrvalho2 < orvalhoMin)
             {
-                orvalhoMin = pontoDeOrvalho1;
-            } 
+                orvalhoMin = pontoDeOrvalho2;
+            }
         }else
         {
             falhaSensores = true;
