@@ -641,7 +641,16 @@ void setup()
     pinMode(LED_VERMELHO, OUTPUT);
     pinMode(LED_VERDE, OUTPUT);
     pinMode(BUTTON_PIN, INPUT);
-    pinMode(LED_AMARELO, OUTPUT);
+    //pinMode(LED_AMARELO, OUTPUT);
+
+    //CONFIGURAÇÕES DA PORTA 15 PARA PISCAR O LED
+    //POR SER UMA PORTA PWM, É NECESSÁRIO CONFIGURAÇÕES ADICIONAIS
+    // configure LED PWM functionalitites
+    ledcSetup(0, 5000, 8);
+    // attach the channel to the GPIO to be controlled
+    ledcAttachPin(LED_AMARELO, 0);
+
+
     digitalWrite(LED_VERDE, HIGH);
 
     //inicializa a tela
@@ -954,8 +963,9 @@ void setup()
             esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide identity
             esp_wifi_sta_wpa2_ent_set_username((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide username --> identity and username is same
             esp_wifi_sta_wpa2_ent_set_password((uint8_t *)configuracao.eduroanSenha, strlen(configuracao.eduroanSenha)); //provide password
-            esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
-            esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+            //esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
+            //esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+            esp_wifi_sta_wpa2_ent_enable();
             WiFi.begin(configuracao.wifiSsid);
             vTaskDelay(5000/ portTICK_PERIOD_MS);
         }else
@@ -993,13 +1003,6 @@ void setup()
         delay(240000);
     }
 
-    //Configurações de pwm do pino 15
-        //Configura o canal 0 com frequência de 312500 Hz
-        sigmaDeltaSetup(0, 312500);
-        //Anexa o pino 18 (GPIO18) ao canal 0
-        sigmaDeltaAttachPin(15,0);
-        //inicializa o canal 0 para desativado
-        sigmaDeltaWrite(0, 0);
 }
     
 void loop()
@@ -1262,10 +1265,10 @@ void loop()
         {
             if(digitalRead(LED_AMARELO) == HIGH)
             {
-                sigmaDeltaWrite(0, 0);
+                ledcWrite(0, 0);
             }else
             {
-                sigmaDeltaWrite(0, 255);
+                ledcWrite(0, 255);
             }           
             ledIndicadorInternet = currentMillis;
         }
@@ -1806,8 +1809,9 @@ String atualizarRtc(bool wifiLigado)
                 esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide identity
                 esp_wifi_sta_wpa2_ent_set_username((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide username --> identity and username is same
                 esp_wifi_sta_wpa2_ent_set_password((uint8_t *)configuracao.eduroanSenha, strlen(configuracao.eduroanSenha)); //provide password
-                esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
-                esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+               //esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
+                //esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+                esp_wifi_sta_wpa2_ent_enable();
                 WiFi.begin(configuracao.wifiSsid);
                 vTaskDelay(5000/ portTICK_PERIOD_MS);
             }else
