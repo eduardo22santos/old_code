@@ -1349,7 +1349,6 @@ void reconnect(Configuracao config)
         if (WiFi.status() != WL_CONNECTED)
         {
             WiFi.reconnect();
-            sigmaDeltaWrite(0, 255);
             vTaskDelay(10000/ portTICK_PERIOD_MS);
         }else if (!client.connected())
         {
