@@ -822,7 +822,6 @@ void loop()
     {           
         DateTime tempoAtual;
          
-        tempoAtual = relogio.now();
 
         if (dadosLocais.falhaSensores)
         {
