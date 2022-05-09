@@ -48,20 +48,7 @@ float VariaveisTermicas::calculaItu(Animal animal, bool tipoDeSensor, float umid
 }
 void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, HTU21D &htu21d, Adafruit_BMP280 &bmp, bool tipoDeSensor, RTC_DS3231 &relogio)
 {
-        //Atualiza o horario
-        horario = relogio.now();
-        rtcTemperature = relogio.getTemperature();
-        if (!horario.isValid())
-        {
-            erroRtc = true;
-            esp_restart();
-        }else
-        {
-            erroRtc = false;
-        }              
-        //variaveis temporárias para nao passar leituras erradas
-        float pressao1 = bmp.readPressure();
-        
+       
         //Verifica se há erros nas leituras dos sensores ds18b20
         if(tbs == -127.0 || tbs == 85)
         {
@@ -90,17 +77,6 @@ void VariaveisTermicas::atualizaVariaveis(Animal animal, uint8_t LED_VERMELHO, H
             erroSensorGlobo = false;
         }
         
-        //Verifica se há erro no sensor de pressão
-        if (isnan(pressao1) == 0 && pressao1 > 1)
-        {
-            pressao = (pressao1 / 100);
-            altitude = bmp.readAltitude();
-            bmpTemperatura = bmp.readTemperature();
-            erroSensorPressao = false;
-        }else
-        {
-            erroSensorPressao = true;
-        }
         
         //Verifica se há erro na leitura do sensor htu21d
         float umidade = htu21d.readHumidity();

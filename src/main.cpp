@@ -666,23 +666,7 @@ void setup()
     display.print("Versao 1.5");
     display.display();
 
-    //testa o catao de memoria tornando obrigatorio o uso
-    if(!SD.begin())
-    {
-        display.clearDisplay();
-        display.setCursor(0,11);
-        display.print("SD FALHOU!\nENSIRA O CARTAO SD!");
-        display.display();
-        while (!SD.begin())
-        {
-            digitalWrite(LED_VERDE, LOW);
-            digitalWrite(LED_VERMELHO,LOW);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-            digitalWrite(LED_VERDE, HIGH);
-            digitalWrite(LED_VERMELHO, HIGH);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-        }
-    }
+    
     // SPIFFS
     if(!SPIFFS.begin())
     {
@@ -701,75 +685,21 @@ void setup()
         }
     }
 
-    //inicia e testa modulo rtc
-    if(!relogio.begin())
-    {
-        display.clearDisplay();
-        display.setCursor(0,11);
-        display.print("MODULO RELOGIO\n FALHOU!\nOU ESTA\n DESCONECTADO!");
-        display.display();
-        while(!relogio.begin())
-        {
-            digitalWrite(LED_VERDE, LOW);
-            digitalWrite(LED_VERMELHO,LOW);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-            digitalWrite(LED_VERDE, HIGH);
-            digitalWrite(LED_VERMELHO, HIGH);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-        }
-    }
+    
     
     //inicializar modulos e sensores
     globoNegro.begin();
     bulboSeco.begin();
     bulboUmido.begin();
     htu21d.begin();
-    if (!bmp.begin(0x76))
-    {
-        display.clearDisplay();
-        display.setCursor(0,11);
-        display.print("SENSOR DE\n PRESSAO FALHOU!\nOU ESTA\n DESCONECTADO!");
-        display.display();
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                      "try a different address!"));
-        while (!bmp.begin(0x76))
-        {
-            digitalWrite(LED_VERDE, LOW);
-            digitalWrite(LED_VERMELHO,LOW);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-            digitalWrite(LED_VERDE, HIGH);
-            digitalWrite(LED_VERMELHO, HIGH);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-        }   
-    }
-
-
-
-    /* Default settings from datasheet. sensor de pressão bmp280 */
-    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                  Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                  Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                  Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                  Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
     
 
+
+
+   
+
     //verifica se há arquivo de configuracao no sd card
-    if(SD.exists("/config.json"))
-    {
-        String config = "/config.json";
-        if(SPIFFS.exists(arquivoDeConfiguracao)) SPIFFS.remove(arquivoDeConfiguracao);//apaga o arquivo de configuracao na memoria flash
-        exportConfiration(loadConfigurationSd(config, display));
-        SD.remove("/config.json");
-        saveConfigurationSd();
-        esp_restart();
-    }else
-    {
-        if (!SD.exists("/exemplo.json"))
-        {
-            saveConfigurationSd();
-            esp_restart();
-        }
-    }
+   
    
     //Verifica o arquivo de configuracao, criando um modelo exemplo caso não exista e tambem reiniciando o aparelho
     if (!SPIFFS.exists(arquivoDeConfiguracao))
@@ -783,170 +713,7 @@ void setup()
     //se as variaves internetStatus e mqttStatus estiverem true no aquivo de configuracao, o wifi será ligado no setup
     if (configuracao.mqttStatus && configuracao.internetStatus) internetAtiva = true; 
     
-    //Testa o rtc para verificar o horario
-    DateTime verificaRtc = relogio.now();
-    if (!verificaRtc.isValid() || verificaRtc.year()==2000)
-    {
-        display.clearDisplay();
-        display.setCursor(0,11);
-        display.print("SINCRONIZANDO\n HORARIO!");
-        display.display();
-        display.setCursor(0,21);
-        
-        display.print(atualizarRtc(false));
-        display.display();
-        vTaskDelay(2000/portTICK_PERIOD_MS); 
-        ESP.restart();
-    }
-
-    //Atualiza horario do aparelho e define o alarme
-    DateTime tempoAtual = relogio.now();
-    relogio.disable32K();
-    pinMode(CLOCK_INTERRUPT_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(CLOCK_INTERRUPT_PIN), onAlarm, FALLING);
-    relogio.clearAlarm(1);
-    relogio.clearAlarm(2);
-    relogio.writeSqwPinMode(DS3231_OFF);
-    relogio.disableAlarm(2);
-    zeroHora = DateTime(tempoAtual.year(),tempoAtual.month(),tempoAtual.day(),23,59,58);
-    relogio.setAlarm1(zeroHora,DS3231_A1_Hour); 
-
-    //Verifica se existe o arquivo datalog no cartao de memoria, criando-o caso contrario
-    if (!SD.exists(arquivoDatalog_txt)) //verifica ou cria o arquivo datalog.txt
-    {
-        File file = SD.open(arquivoDatalog_txt, FILE_WRITE);
-        file.close();
-        appendFile(SD, arquivoDatalog_txt, datalogCabecalho);   
-    }
-
-    //Verifica se existe a pasta que armazena os arquivos diarios no sd, criando caso contrario
-    if (!SD.exists(pasta)) //Verifica ou cria a pasta com os arquivos diarios
-    {
-        createDir(SD, pasta);   
-    }
-
-    //Salva as maximas e minimas no arquivo "/maximas_e_minimas.csv"
-    if (salvarHorarioMeiaNoite)
-    {
-        salvarHorarioMeiaNoite = false;
-        for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-        }
-
-        char horarioArquivo[9] = "hh:mm:ss";
-        char dataArquivo[11] = "DD/MM/YYYY";
-        String datalog = String(dadosLocais.horario.toString(dataArquivo)) + "," +
-            String(dadosLocais.horario.toString(horarioArquivo)) + ","+
-            String(dadosLocais.temperaturaMax) + "," + 
-            String(dadosLocais.temperaturaMin) + "," +
-            String(dadosLocais.temperaturaDeBulboUmidoMax) + "," + 
-            String(dadosLocais.temperaturaDeBulboUmidoMin) + "," + 
-            String(dadosLocais.umidadeMax) + "," +
-            String(dadosLocais.umidadeMin) + "," +
-            String(dadosLocais.globoMax) + "," +
-            String(dadosLocais.globoMin) + "," +
-            String(dadosLocais.ituMax) + "," +
-            String(dadosLocais.ituMin) + "," +
-            String(dadosLocais.itguMax) + "," +
-            String(dadosLocais.itguMin) + "," +
-            String(dadosLocais.orvalhoMax) + "," +
-            String(dadosLocais.orvalhoMin);
-        //Salvando a string no arquivo de maximas e minimas
-        appendFile(SD, pasta + arquivoMaxMin, datalog);
-        
-        if (configuracao.internetStatus)
-        {
-            display.clearDisplay();
-            display.setCursor(0,11);
-            display.print("VERIFICANDO RTC...");
-            display.display();
-            display.setCursor(0,21);
-            display.print(atualizarRtc(false));
-            display.display();
-            vTaskDelay(2000/portTICK_PERIOD_MS); 
-            ESP.restart();
-        }else
-        {
-            vTaskDelay(1000/portTICK_PERIOD_MS);
-        }
-    }
-
-    //Verifica se ja existe um aquivo diario com a data atualizada pelo modulo rtc,
-    //criando um novo arquivo caso nao exista um arquivo do dia corrente, e tambem atualizando o arquivo de maximas e minimasa
-    //Tambem cria o arquivo com as data salvas se não exitir e adiciona a data do dia corrente
-    if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
-    {
-        if (SD.exists(arquivoMaxMinJson))
-        {
-            SD.remove(arquivoMaxMinJson);
-        }
-        for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-        }
-        salvarMaxMin(dadosLocais, arquivoMaxMinJson);
-
-        File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
-        file.close();
-        appendFile(SD, tempoAtual.toString(dataArquivosDiarios), datalogCabecalho);
-
-    }else
-    {  
-        // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
-        if (!SD.exists(arquivoMaxMinJson))
-        {
-            for (size_t i = 0; i < 5; i++)
-            {
-                bulboSeco.requestTemperatures();
-                globoNegro.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                delay(750);
-                dadosLocais.globo = globoNegro.getTempCByIndex(0);
-                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-            }  
-            dadosLocais.zeraMaxMin();
-            salvarMaxMin(dadosLocais, arquivoMaxMinJson);
-        }else
-        {
-          for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-        }
-            lerMaxMin(dadosLocais, arquivoMaxMinJson);   
-        }
-    }
-
-    //cria ou verifica se ja existe o arquivo de maximas e minimas em txt no sd
-    if (!SD.exists(pasta + arquivoMaxMin))
-    {
-        File file = SD.open(pasta + arquivoMaxMin, FILE_WRITE);
-        file.close();
-        appendFile(SD, pasta + arquivoMaxMin, maxMinCabecalho); 
-    }
+   
 
     //Inicia a conexao com internet se o usuario declarar internetStatus e mqttStatus como true no arquivo de configuracao
     if (!configuracoesNoBoot && internetAtiva)
@@ -987,7 +754,6 @@ void setup()
         }          
     }
     SPIFFS.end();
-    SD.end();
 
     //Ativa a função de interrupção quando o botão de interação é prescionado
     if (!configuracoesNoBoot)
@@ -1030,16 +796,7 @@ void loop()
         intervaloLerVariaveis = currentMillis;
        
     } 
-    /**
-     * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
-     * 
-     */
-    diferenca = currentMillis - intervaloSalvarDados;
-    if ( diferenca >= long(configuracao.intervaloSalvar*1000))
-    {
-        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
-        intervaloSalvarDados = currentMillis;
-    }
+   
     /**
      * @brief envia os dados para o servidor no intervalo de tempo especificado no arquivo de configuração
      * 

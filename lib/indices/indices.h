@@ -61,7 +61,7 @@ struct VariaveisTermicas
     //Armazena a temperatura do ponto de orvalho calculada em C a partir do htu21d
     float pontoDeOrvalho2;
     //Armazena a pressão do ambiente em hPa
-    float pressao;
+    float pressao = 984;
     //Índice de temperatura globo e umidade a partir do psicrômetro
     float itgu1;
     //Índice de temperatura globo e umidade a partir do htu21d
