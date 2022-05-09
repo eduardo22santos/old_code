@@ -663,7 +663,7 @@ void setup()
     display.print("GMAQ");
     display.setFont(&FreeMonoOblique9pt7b);
     display.setCursor(0,54);
-    display.print("   1.4 BETA");
+    display.print("Versao 1.5");
     display.display();
 
     //testa o catao de memoria tornando obrigatorio o uso
