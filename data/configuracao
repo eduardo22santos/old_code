@@ -9,7 +9,7 @@
   "mqtt_porta": 1883,
   "mqtt_senha": "WTGuR8JVoxPDu8FJTHZx5k0p",
   "mqtt_usuario": "LSQ2DiIANjcNAjc0NgsRFTo",
-  "mqtt_topico": "1706071",
+  "mqtt_topico": "1729098",
   "mqtt_device_id": "LSQ2DiIANjcNAjc0NgsRFTo",
   "plataforma_status": true,
   "intervalo_internet": 60,
