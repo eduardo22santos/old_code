@@ -1,7 +1,5 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <indices.h> //biblioteca original do projeto
-#include <salvar.h> //biblioteca original do projeto
 #include <WiFi.h>
 #include "esp_wpa2.h" //wpa2 library for connections to Enterprise networks
 #include <esp_wifi.h>
@@ -17,12 +15,16 @@
 #include <SD.h>
 #include <SPI.h>
 #include <esp_sleep.h>
-#define ANEMOMETRO_PIN 26 //Indica qual porta esta sendo utilizada para o botao de interacao
-#define LED_VERMELHO 2 // Led indicador de leitura incorreta
+#include <anemometro.h>
+#include <sensores.h>
+#include <configuracao.h>
+#include <ssd_rtc.h>
 #define LED_VERDE 32 //INDICA O ESTADO DA PLACA
 #define LED_AMARELO 15 //INDICA O ESTADO DA INTERNET
 #define CLOCK_INTERRUPT_PIN 34 //Indica a porta para o pino sqw do rtc
 
+SemaphoreHandle_t semaforoDosIndices;
+SemaphoreHandle_t internetStatusConexao;
 
 
 /***************************************************
@@ -35,16 +37,6 @@
  * 
  */
 TaskHandle_t loop_mqtt;
-/**
- * @brief indentificador taskHandle_d da terefa loopBotao
- * 
- */
-TaskHandle_t loop_botao;
-/**
- * @brief indentificador taskHandle_d da terefa loopConfiguracao
- * 
- */
-TaskHandle_t loop_configuracao;
 /**
  * @brief indentificador taskHandle_d da terefa que salva os dados no cartão de memória
  * 
@@ -78,125 +70,6 @@ void tarefaSalvarSd(void * pvParameters);
  * @param pvParameters 
  */
 void tarefaEnviarMqtt(void * pvParameters);
-/**
- * @brief Faz a leitura do botão de interação, tornando mais inteligente e possibitando funções multi cliques
- * 
- * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
- */
-void loopBotao(void * pvParameters);
-/**
- * @brief Abre uma interface de configuração, possibilitando atualizar o horario no rtc, mudar itu e habilitar o envio de dados na plataforma
- * 
- * @param pvParameters possibilita iniciar a tarefa passando uma variável ou estrutura de dados
- */
-void loopConfiguracao(void * pvParameters);
-/**
- * @brief Salva as leituras dos sensores no cartão de memória escrevendo os dados em um arquivo .csv
- * 
- * @param variaveisTermicas objeto contendo os dados ambientais
- */
-void tarefaSalvar(VariaveisTermicas variaveisTermicas);
-
-/**********************************************************
- * CONFIGURACOES DOS SENSORES DE TEMPERATURA E PRESSÃO
- * ********************************************************
- */
-
-/**
- * @brief objeto onewire contento o valor do pino de conexão do sensor DS18B20 para o bulboSeco
- * 
- */
-OneWire principal(4);
-/**
- * @brief objeto onewire contendo o valor do pino de conexão do sensor DS18B20 para o globoNegro
- * 
- */
-OneWire secundario(14);
-/**
- * @brief objeto onewire contendo o valor do pino de conexão do sensor DS18B20 para o bulboUmido
- * 
- */
-OneWire terciario(27);
-/**
- * @brief objeto para manipulação e leitura do sensor de bulbo seco
- * 
- * @return DallasTemperature 
- */
-DallasTemperature bulboSeco(&principal);
-/**
- * @brief objeto para manipulação e leitura do sensor de globo negro
- * 
- * @return DallasTemperature 
- */
-DallasTemperature globoNegro(&terciario);
-/**
- * @brief objeto para manipulação e leitura do sensor de bulbo umido
- * 
- * @return DallasTemperature 
- */
-DallasTemperature bulboUmido(&secundario);
-/**
- * @brief Objeto para manipulação e leitura do sensor de umidade e temperatura HTU21D
- * 
- */
-HTU21D htu21d;
-/**
- * @brief Ojeto para manipulação e leitura do sensor de pressão e temperatura BMP280, conectado via I2C
- * 
- */
-Adafruit_BMP280 bmp;
-/**
- * @brief Objeto para realizar leituras nos sensores, armazenar e reconhecer falhas nos sensores
- * 
- */
-VariaveisTermicas dadosLocais;
-
-/***************************************************
- * Nome de pastas e arquivos no sd card
- * **************************************************
- */
-
-/**
- * @brief nome do arquivo de configuracao no formato json
- * 
- */
-String arquivoDeConfiguracao = "/configuracao";
-/**
- * @brief nome do diretório que armazena os arquivos diários
- * 
- */
-String pasta = "/arquivos";
-/**
- * @brief arquivo que armazena todas a leituras do aparelho
- * 
- */
-String arquivoDatalog_txt = "/datalog.csv";
-/**
- * @brief cabeçalho do arquivo datalog, contendo o identificador de cada coluna
- * 
- */
-String datalogCabecalho = "data,horario,umidade1,umidade2,temperaturaDeGlobo,temperaturaBulboSeco,temperaturaBulboUmido,htu21d_Temperatura,bmp_Temperatura,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,rtcTemperatura,altitude,falha";
-/**
- * @brief Nome do arquivo que salva os valores de máximas e mínimas diários
- * 
- */
-String arquivoMaxMin = "/maximas_e_minimas.csv";
-/**
- * @brief cabeçalho do arquivo "/maximas_e_minimas.csv" contendo o identificador de cada coluna
- * 
- */
-String maxMinCabecalho = "data,horario,tbsMax,tbsMin,tbuMin, TbuMax, umidadeMax,umidadeMin,tgMax,tgMin,ituMax,ituMin,itguMax,itguMin,orvalhoMax,orvalhoMin";
-/**
- * @brief String modelo para a geração dos nomes dos arquivos diários, que serão gerados a partir da função toString() da lib RTCLIB
- * 
- */
-char dataArquivosDiarios[] = "/arquivos/DD - MM - YYYY.csv";
-/**
- * @brief 
- * 
- */
-String arquivoMaxMinJson = "/maximas_e_minimas_atual.json";
-
 /***************************************************
  * Objetos e variaveis de configuração
  * **************************************************
@@ -206,7 +79,7 @@ String arquivoMaxMinJson = "/maximas_e_minimas_atual.json";
  * @brief Objeto que armazena as configuracoes fornecidas no arquivo json de configuracao e deixa disponivel para usar no sistema.
  * 
  */
-Configuracao configuracao;
+Configuracao config;
 /**
  * @brief Indica se é para iniciar a conexão com o wifi e estabelecer a conexão com a plataforma online
  * 
@@ -250,7 +123,7 @@ WiFiUDP ntpUDP;
  * @brief Objeto para atualização, manipulação e letura do relógio NTP
  * 
  */
-NTPClient timeClient(ntpUDP, configuracao.servidorNtp, configuracao.timeZone * 3600, 60000); //pode-se alterar o servidor ntp
+NTPClient timeClient(ntpUDP, config.servidorNtp, config.timeZone * 3600, 60000); //pode-se alterar o servidor ntp
 /**
  * @brief Objeto necessário para o objeto client
  * 
@@ -341,119 +214,90 @@ unsigned long ledIndicativo = 250;
  * 
  */
 unsigned long ledIndicadorInternet = 0;
-/***************************************************
- * TAREFAS
- * **************************************************
- */
-void tarefaSalvar(VariaveisTermicas variaveisTermicas)
-{ 
+
+void tarefaSalvarSd(void * pvParameters)
+{
+    Configuracao config = *(Configuracao*)pvParameters;
+    VariaveisTermicas indicesLocais;
+    Serial.println("Iniciando a tarefa salvar!");
     if (!SD.begin())
     {
         ESP.restart();
     }
-
-    char falha = '0';
-    if(variaveisTermicas.falhaSensores)
+    if (xSemaphoreTake(semaforoDosIndices,portMAX_DELAY) == pdTRUE)
     {
-        falha = '1';
+        indicesLocais = atualizaVariaveis(config.tipoAnimal);
+        while(xSemaphoreGive(semaforoDosIndices) != pdTRUE);
+    }else
+    {
+        Serial.println("Semaforo indisponivel para a tarefa salvar!");
+    }
+    
+
+    DateTime tempoAtual = relogio.now();
+    if (!tempoAtual.isValid())
+    {
+        esp_restart();
     }
     char horarioArquivo[9] = "hh:mm:ss";
     char dataArquivo[11] = "DD/MM/YYYY";
 
-    //""data,horario,umidade1,umidade2,temperaturaDeGlobo,temperaturaBulboSeco,temperaturaBulboUmido,htu21d_Temperatura,bmp_Temperatura,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,orvalho1,orvalho2,hpa,rtcTemperatura,altitude,falha";
-
-    String datalog = String(variaveisTermicas.horario.toString(dataArquivo)) + "," + 
-        String(variaveisTermicas.horario.toString(horarioArquivo)) + "," +
-        String(variaveisTermicas.umidadeRelativa1) + "," + 
-        String(variaveisTermicas.umidadeRelativa2) + "," + 
-        String(variaveisTermicas.temperaturaDeGlobo) + "," +
-        String(variaveisTermicas.temperaturaDeBulboSeco) + "," +
-        String(variaveisTermicas.temperaturaDeBulboUmido) + "," +
-        String(variaveisTermicas.htu21dTemperatura) + "," +
-        String(variaveisTermicas.bmpTemperatura) + "," +
-        String(variaveisTermicas.itu1) + "," +
-        String(variaveisTermicas.itu2) + "," +
-        String(variaveisTermicas.itgu1) + "," +
-        String(variaveisTermicas.itgu2) + "," +
-        String(variaveisTermicas.ibutg1) + "," +
-        String(variaveisTermicas.ibutg2) + "," +
-        String(variaveisTermicas.pontoDeOrvalho1) + "," +
-        String(variaveisTermicas.pontoDeOrvalho2) + "," +
-        String(variaveisTermicas.pressao) + "," +
-        String(variaveisTermicas.rtcTemperature) + "," +
-        String(variaveisTermicas.altitude) + "," +
-        String(falha);
-    //Salva no arquivo datalog
-    appendFile(SD, arquivoDatalog_txt, datalog);
-    //Salva no arquivo diário
-    appendFile(SD, String(variaveisTermicas.horario.toString(dataArquivosDiarios)), datalog);
-    //apaga o arquivo json de maximas e minimas
-    if(!SPIFFS.begin()) esp_restart();
-    SD.remove(arquivoMaxMinJson);
-    salvarMaxMin(variaveisTermicas, arquivoMaxMinJson); //cria um novo arquivo json de maximas e minimas
-    SPIFFS.end();
-    SD.end();
-}
-void tarefaSalvarSd(void * pvParameters)
-{
-    VariaveisTermicas dadosLocais = *(VariaveisTermicas*)pvParameters;
-    tarefaSalvar(dadosLocais);
+        String datalog = String(tempoAtual.toString(dataArquivo)) + "," + 
+            String(tempoAtual.toString(horarioArquivo)) + "," +
+            String(indicesLocais.umidadeRelativa1) + "," + 
+            String(indicesLocais.umidadeRelativa2) + "," + 
+            String(indicesLocais.temperaturaDeGlobo) + "," +
+            String(indicesLocais.temperaturaDeBulboSeco) + "," +
+            String(indicesLocais.temperaturaDeBulboUmido) + "," +
+            String(indicesLocais.itu1) + "," +
+            String(indicesLocais.itu2) + "," +
+            String(indicesLocais.itgu1) + "," +
+            String(indicesLocais.itgu2) + "," +
+            String(indicesLocais.ibutg1) + "," +
+            String(indicesLocais.ibutg2) + "," +
+            String(indicesLocais.pontoDeOrvalho1) + "," +
+            String(indicesLocais.pontoDeOrvalho2) + "," +
+            String(indicesLocais.pressao) + "," +
+            String(indicesLocais.velocidadeDoAr);
+        //Salva no arquivo datalog
+        appendFile(SD, "/datalog.csv", datalog.c_str());
+        SD.end();
     vTaskDelete(NULL);
-
 }
 void tarefaEnviarMqtt(void * pvParameters)
 {
-    VariaveisTermicas dadosLocais = *(VariaveisTermicas*)pvParameters;
-    enviarMqtt(configuracao, dadosLocais);    
+
+    Configuracao config = *(Configuracao*)pvParameters;
+     VariaveisTermicas indicesLocais;
+
+    if (xSemaphoreTake(internetStatusConexao,pdMS_TO_TICKS(100)) == pdTRUE)
+    {
+        if (xSemaphoreTake(semaforoDosIndices,portMAX_DELAY) == pdTRUE)
+        {
+            indicesLocais = atualizaVariaveis(config.tipoAnimal);
+            while(xSemaphoreGive(semaforoDosIndices) != pdTRUE);
+        }else
+        {
+            Serial.println("Semaforo indisponivel para a tarefa salvar!");
+        }
+
+        while(xSemaphoreGive(internetStatusConexao) != pdTRUE);
+    }
+    enviarMqtt(config, indicesLocais);    
     vTaskDelete(NULL);
 }
 void reconectarRede(void * pvParameters)
 {
     
-    reconnect(configuracao);
+    reconnect(config);
     permissao = true;
     vTaskDelete(NULL);
-}
-VariaveisTermicas variaveis;
-
-String logErro(VariaveisTermicas variaveis)
-{   
-    String status;
-    if (variaveis.erroSensorGlobo)
-    {
-        status = "erro globo";
-        return status;
-    }else if (variaveis.erroSensorPressao)
-    {
-        status = "erro pressao";
-        return status;
-    }else if (variaveis.erroSensorTbs)
-    {
-        status = "erro tbs";
-        return status;
-    }else if (variaveis.erroSensorUmidade)
-    {
-        status = "erro tbu";
-        return status;
-    }else if (variaveis.erroRtc)
-    {
-        status = "erro rtc";
-        return status;
-    }else
-    {
-        status = "tudo funcionando";
-        return status;
-    }
-    
-    
-    
 }
 void setup()
 {
     ////Serial para debug
     Serial.begin(9600);
     Wire.begin(21,22);
-    pinMode(LED_VERMELHO, OUTPUT);
     pinMode(LED_VERDE, OUTPUT);
     pinMode(LED_AMARELO, OUTPUT);
 
@@ -467,16 +311,19 @@ void setup()
 
     digitalWrite(LED_VERDE, HIGH);
 
+    vSemaphoreCreateBinary(semaforoDosIndices);
+    vSemaphoreCreateBinary(internetStatusConexao);
+
     //testa o catao de memoria tornando obrigatorio o uso
     if(!SD.begin())
     {
         while (!SD.begin())
         {
             digitalWrite(LED_VERDE, LOW);
-            digitalWrite(LED_VERMELHO,LOW);
+            digitalWrite(2,LOW);
             vTaskDelay(250 / portTICK_PERIOD_MS);
             digitalWrite(LED_VERDE, HIGH);
-            digitalWrite(LED_VERMELHO, HIGH);
+            digitalWrite(2, HIGH);
             vTaskDelay(250 / portTICK_PERIOD_MS);
         }
     }
@@ -496,69 +343,48 @@ void setup()
         }
     }
     
-    //inicializar modulos e sensores
-    globoNegro.begin();
-    bulboSeco.begin();
-    bulboUmido.begin();
-    htu21d.begin();
-    if (!bmp.begin(0x76))
-    {
-        while (!bmp.begin(0x76))
-        {
-            digitalWrite(LED_VERDE, LOW);
-            digitalWrite(LED_VERMELHO,LOW);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-            digitalWrite(LED_VERDE, HIGH);
-            digitalWrite(LED_VERMELHO, HIGH);
-            vTaskDelay(250 / portTICK_PERIOD_MS);
-        }   
-    }
+    //Inicializa os sensores
+    sensoresBegin();
 
-
-
-    /* Default settings from datasheet. sensor de pressão bmp280 */
-    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,     /* Operating Mode. */
-                  Adafruit_BMP280::SAMPLING_X2,     /* Temp. oversampling */
-                  Adafruit_BMP280::SAMPLING_X16,    /* Pressure oversampling */
-                  Adafruit_BMP280::FILTER_X16,      /* Filtering. */
-                  Adafruit_BMP280::STANDBY_MS_500); /* Standby time. */
+    config = carregarConfiguracao();
     
-
-    //verifica se há arquivo de configuracao no sd card
-    if(SD.exists("/config.json"))
+    uint8_t cont;
+    do
     {
-        String config = "/config.json";
-        if(SPIFFS.exists(arquivoDeConfiguracao)) SPIFFS.remove(arquivoDeConfiguracao);//apaga o arquivo de configuracao na memoria flash
-        exportConfiration(loadConfigurationSd(config, display));
-        SD.remove("/config.json");
-        saveConfigurationSd();
-        esp_restart();
-    }else
-    {
-        if (!SD.exists("/exemplo.json"))
+        if (SD.begin())
         {
-            saveConfigurationSd();
-            esp_restart();
+            config.ssd = true;
+            //Verifica se existe o arquivo datalog no cartao de memoria, criando-o caso contrario
+            if (!SD.exists("/datalog.csv")) //verifica ou cria o arquivo datalog.txt
+            {
+                File file = SD.open("/datalog.csv", FILE_WRITE);
+                file.close();
+                appendFile(SD, "/datalog.csv", "data,hora,tgn,tbs,tbu,psi,htu,itu1,itu2,itgu1,itgu2,ibutg1,ibutg2,or1,or2,hpa,v_ar");   
+            }
+            if (SD.exists("/config.json"))
+            {
+                SD.end();
+                loadConfiguration("/config.json",config);
+                
+            }
+            break;
+        }else
+        {
+            config.ssd = false;
+            Serial.println("SSD indisponivel!");
+            cont++;
         }
-    }
-   
-    //Verifica o arquivo de configuracao, criando um modelo exemplo caso não exista e tambem reiniciando o aparelho
-    if (!SPIFFS.exists(arquivoDeConfiguracao))
-    {
-        saveConfiguration();       
-    }else
-    {
-        configuracao = loadConfiguration(arquivoDeConfiguracao, display);//puxa o arquivo de configuracao json no cartao de memoria
-    }
+        
+    } while (cont < 10);
 
     //se as variaves internetStatus e mqttStatus estiverem true no aquivo de configuracao, o wifi será ligado no setup
-    if (configuracao.mqttStatus && configuracao.internetStatus) internetAtiva = true; 
+    if (config.mqttStatus && config.internetStatus) internetAtiva = true; 
     
     //Testa o rtc para verificar o horario
     DateTime verificaRtc = relogio.now();
     if (!verificaRtc.isValid() || verificaRtc.year()==2000)
     {
-        atualizarRtc(false).c_str();
+        atualizarRtc(false);
          
         ESP.restart();
     }
@@ -572,61 +398,56 @@ void setup()
     relogio.clearAlarm(2);
     relogio.writeSqwPinMode(DS3231_OFF);
     relogio.disableAlarm(2);
-    zeroHora = DateTime(tempoAtual.year(),tempoAtual.month(),tempoAtual.day(),23,59,58);
+    zeroHora = DateTime(tempoAtual.year(),tempoAtual.month(),tempoAtual.day(),0,0,0);
     relogio.setAlarm1(zeroHora,DS3231_A1_Hour); 
-
-    //Verifica se existe o arquivo datalog no cartao de memoria, criando-o caso contrario
-    if (!SD.exists(arquivoDatalog_txt)) //verifica ou cria o arquivo datalog.txt
-    {
-        File file = SD.open(arquivoDatalog_txt, FILE_WRITE);
-        file.close();
-        appendFile(SD, arquivoDatalog_txt, datalogCabecalho);   
-    }
-
-    //Verifica se existe a pasta que armazena os arquivos diarios no sd, criando caso contrario
-    if (!SD.exists(pasta)) //Verifica ou cria a pasta com os arquivos diarios
-    {
-        createDir(SD, pasta);   
-    }
 
     //Salva as maximas e minimas no arquivo "/maximas_e_minimas.csv"
     if (salvarHorarioMeiaNoite)
     {
+        VariaveisTermicas indicesLocais;
         salvarHorarioMeiaNoite = false;
-        for (size_t i = 0; i < 5; i++)
+        
+        realizarLeitura();
+
+        if (!SD.begin())
         {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
+            ESP.restart();
         }
 
+        indicesLocais = atualizaVariaveis(config.tipoAnimal);
+        
+
+        tempoAtual = relogio.now();
+        if (!tempoAtual.isValid())
+        {
+            esp_restart();  
+        }
         char horarioArquivo[9] = "hh:mm:ss";
         char dataArquivo[11] = "DD/MM/YYYY";
-        String datalog = String(dadosLocais.horario.toString(dataArquivo)) + "," +
-            String(dadosLocais.horario.toString(horarioArquivo)) + ","+
-            String(dadosLocais.temperaturaMax) + "," + 
-            String(dadosLocais.temperaturaMin) + "," +
-            String(dadosLocais.temperaturaDeBulboUmidoMax) + "," + 
-            String(dadosLocais.temperaturaDeBulboUmidoMin) + "," + 
-            String(dadosLocais.umidadeMax) + "," +
-            String(dadosLocais.umidadeMin) + "," +
-            String(dadosLocais.globoMax) + "," +
-            String(dadosLocais.globoMin) + "," +
-            String(dadosLocais.ituMax) + "," +
-            String(dadosLocais.ituMin) + "," +
-            String(dadosLocais.itguMax) + "," +
-            String(dadosLocais.itguMin) + "," +
-            String(dadosLocais.orvalhoMax) + "," +
-            String(dadosLocais.orvalhoMin);
-        //Salvando a string no arquivo de maximas e minimas
-        appendFile(SD, pasta + arquivoMaxMin, datalog);
+
+    
+        String datalog = String(tempoAtual.toString(dataArquivo)) + "," + 
+            String(tempoAtual.toString(horarioArquivo)) + "," +
+            String(indicesLocais.umidadeRelativa1) + "," + 
+            String(indicesLocais.umidadeRelativa2) + "," + 
+            String(indicesLocais.temperaturaDeGlobo) + "," +
+            String(indicesLocais.temperaturaDeBulboSeco) + "," +
+            String(indicesLocais.temperaturaDeBulboUmido) + "," +
+            String(indicesLocais.itu1) + "," +
+            String(indicesLocais.itu2) + "," +
+            String(indicesLocais.itgu1) + "," +
+            String(indicesLocais.itgu2) + "," +
+            String(indicesLocais.ibutg1) + "," +
+            String(indicesLocais.ibutg2) + "," +
+            String(indicesLocais.pontoDeOrvalho1) + "," +
+            String(indicesLocais.pontoDeOrvalho2) + "," +
+            String(indicesLocais.pressao) + "," +
+            String(indicesLocais.velocidadeDoAr);
+        //Salva no arquivo datalog
+        appendFile(SD, "/datalog.csv", datalog.c_str());
+        SD.end();
         
-        if (configuracao.internetStatus)
+        if (config.internetStatus)
         {
             atualizarRtc(false);
             ESP.restart();
@@ -636,101 +457,30 @@ void setup()
         }
     }
 
-    //Verifica se ja existe um aquivo diario com a data atualizada pelo modulo rtc,
-    //criando um novo arquivo caso nao exista um arquivo do dia corrente, e tambem atualizando o arquivo de maximas e minimasa
-    //Tambem cria o arquivo com as data salvas se não exitir e adiciona a data do dia corrente
-    if (!SD.exists(tempoAtual.toString(dataArquivosDiarios)))
-    {
-        if (SD.exists(arquivoMaxMinJson))
-        {
-            SD.remove(arquivoMaxMinJson);
-        }
-        for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-        }
-        salvarMaxMin(dadosLocais, arquivoMaxMinJson);
-
-        File file = SD.open( tempoAtual.toString(dataArquivosDiarios), FILE_WRITE);
-        file.close();
-        appendFile(SD, tempoAtual.toString(dataArquivosDiarios), datalogCabecalho);
-
-    }else
-    {  
-        // Verifica se existe o arquivo que conten o json com os valores de maximas e minimas no cartão de memória.
-        if (!SD.exists(arquivoMaxMinJson))
-        {
-            for (size_t i = 0; i < 5; i++)
-            {
-                bulboSeco.requestTemperatures();
-                globoNegro.requestTemperatures();
-                bulboUmido.requestTemperatures();
-                delay(750);
-                dadosLocais.globo = globoNegro.getTempCByIndex(0);
-                dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-                dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-                dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-            }  
-            dadosLocais.zeraMaxMin();
-            salvarMaxMin(dadosLocais, arquivoMaxMinJson);
-        }else
-        {
-          for (size_t i = 0; i < 5; i++)
-        {
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            delay(750);
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
-        }
-            lerMaxMin(dadosLocais, arquivoMaxMinJson);   
-        }
-    }
-
-    //cria ou verifica se ja existe o arquivo de maximas e minimas em txt no sd
-    if (!SD.exists(pasta + arquivoMaxMin))
-    {
-        File file = SD.open(pasta + arquivoMaxMin, FILE_WRITE);
-        file.close();
-        appendFile(SD, pasta + arquivoMaxMin, maxMinCabecalho); 
-    }
-
     //Inicia a conexao com internet se o usuario declarar internetStatus e mqttStatus como true no arquivo de configuracao
     if (internetAtiva)
     {   
         WiFi.disconnect(true);  //disconnect form wifi to set new wifi connection
         WiFi.mode(WIFI_STA); //init wifi mode
 
-        if(configuracao.eduroamStatus)
+        if(config.eduroamStatus)
         {
-            esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide identity
-            esp_wifi_sta_wpa2_ent_set_username((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide username --> identity and username is same
-            esp_wifi_sta_wpa2_ent_set_password((uint8_t *)configuracao.eduroanSenha, strlen(configuracao.eduroanSenha)); //provide password
-            //esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
-            //esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+            esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)config.eduroanLogin, strlen(config.eduroanLogin)); //provide identity
+            esp_wifi_sta_wpa2_ent_set_username((uint8_t *)config.eduroanLogin, strlen(config.eduroanLogin)); //provide username --> identity and username is same
+            esp_wifi_sta_wpa2_ent_set_password((uint8_t *)config.eduroanSenha, strlen(config.eduroanSenha)); //provide password
             esp_wifi_sta_wpa2_ent_enable();
-            WiFi.begin(configuracao.wifiSsid);
+            WiFi.begin(config.wifiSsid);
             vTaskDelay(5000/ portTICK_PERIOD_MS);
         }else
         {
-            WiFi.begin(configuracao.wifiSsid, configuracao.wifiSenha);
+            WiFi.begin(config.wifiSsid, config.wifiSenha);
             vTaskDelay(5000/ portTICK_PERIOD_MS);
         }
         
         //INICIA O LOOP DO SERVICO MQTT no core 0
-        client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
+        client.setServer(config.mqttHostname, config.mqttPort);
         client.setCallback(callback);
-        if(client.connect(configuracao.mqttName,configuracao.mqttUser, configuracao.mqttSenha))
+        if(client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
         {
             //Para reduzir o consumo de recursos, a função de se inscrever em tópicos mqtt foi desabilitada
             //client.subscribe(configuracao.mqttTopicoSub);
@@ -754,27 +504,22 @@ void loop()
     diferenca = currentMillis - intervaloLerVariaveis;
     if ( diferenca >= long(10000))
     {   
-            bulboSeco.requestTemperatures();
-            bulboSeco.requestTemperatures();
-            globoNegro.requestTemperatures();
-            bulboUmido.requestTemperatures();
-            dadosLocais.globo = globoNegro.getTempCByIndex(0);
-            dadosLocais.tbs = bulboSeco.getTempCByIndex(0);
-            dadosLocais.tbu = bulboUmido.getTempCByIndex(0);
-            dadosLocais.atualizaVariaveis(configuracao.tipoAnimal, LED_VERMELHO, htu21d, bmp, configuracao.sensorBulboUmido, relogio);
+        if (xSemaphoreTake(semaforoDosIndices,portMAX_DELAY) == pdTRUE)
+        {
+            realizarLeitura();        
+            while(xSemaphoreGive(semaforoDosIndices) != pdTRUE);
+        }
         
-        
-        intervaloLerVariaveis = currentMillis;
-       
+        intervaloLerVariaveis = currentMillis; 
     } 
     /**
      * @brief Salva os dados no cartão de memoria no intervalo de tempo especificado no arquivo de configuração
      * 
      */
     diferenca = currentMillis - intervaloSalvarDados;
-    if ( diferenca >= long(configuracao.intervaloSalvar*1000))
+    if ( diferenca >= long(config.intervaloSalvar*1000))
     {
-        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&dadosLocais, 4, &tarefa_salvar,0);
+        xTaskCreatePinnedToCore(tarefaSalvarSd, "tarefaSalvar", 10000, (void*)&config, 4, &tarefa_salvar,0);
         intervaloSalvarDados = currentMillis;
     }
     /**
@@ -782,12 +527,12 @@ void loop()
      * 
      */
     diferenca = currentMillis - intervaloEnviarDados;
-    if (internetEstado && diferenca >= long(configuracao.intervaloOnline*1000))
+    if (internetEstado && diferenca >= long(config.intervaloOnline*1000))
     {
         //MQTT
         if (internetEstado)
         {
-            xTaskCreatePinnedToCore(tarefaEnviarMqtt, "tarefaEnviarMqtt", 10000, (void*)&dadosLocais, 2, &tarefa_salvar,0);
+            xTaskCreatePinnedToCore(tarefaEnviarMqtt, "tarefaEnviarMqtt", 10000, (void*)&config, 2, &tarefa_salvar,0);
         }
         intervaloEnviarDados = currentMillis;
     }
@@ -856,7 +601,7 @@ void reconnect(Configuracao config)
             vTaskDelay(10000/ portTICK_PERIOD_MS);
         }else if (!client.connected())
         {
-            client.setServer(configuracao.mqttHostname, configuracao.mqttPort);
+            client.setServer(config.mqttHostname, config.mqttPort);
             client.setCallback(callback);
 
             if (client.connect(config.mqttName,config.mqttUser, config.mqttSenha))
@@ -887,7 +632,7 @@ void enviarMqtt(Configuracao config, VariaveisTermicas indices)
                         "&field5="+String(indices.umidadeRelativa1)+
                         "&field6="+String(indices.itu1)+
                         "&field7="+String(indices.itgu1)+
-                        "&field8="+String(indices.umidadeRelativa2)+"&status="+indices.horario.timestamp());
+                        "&field8="+String(indices.umidadeRelativa2)+"&status="+relogio.now().timestamp());
         client.publish(String("channels/"+ String(config.mqttTopico) +"/publish").c_str(), enviar.c_str());
 }
 void onAlarm()
@@ -899,25 +644,23 @@ void onAlarm()
 }
 void atualizarRtc(bool wifiLigado)
 {
-    if (configuracao.internetStatus)
+    if (config.internetStatus)
     {
         if (!wifiLigado)
         {
             WiFi.disconnect(true);  //disconnect form wifi to set new wifi connection
             WiFi.mode(WIFI_STA); //init wifi mode
-            if(configuracao.eduroamStatus)
+            if(config.eduroamStatus)
             {
-                esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide identity
-                esp_wifi_sta_wpa2_ent_set_username((uint8_t *)configuracao.eduroanLogin, strlen(configuracao.eduroanLogin)); //provide username --> identity and username is same
-                esp_wifi_sta_wpa2_ent_set_password((uint8_t *)configuracao.eduroanSenha, strlen(configuracao.eduroanSenha)); //provide password
-               //esp_wpa2_config_t wifiMode = WPA2_CONFIG_INIT_DEFAULT();
-                //esp_wifi_sta_wpa2_ent_enable(&wifiMode);
+                esp_wifi_sta_wpa2_ent_set_identity((uint8_t *)config.eduroanLogin, strlen(config.eduroanLogin)); //provide identity
+                esp_wifi_sta_wpa2_ent_set_username((uint8_t *)config.eduroanLogin, strlen(config.eduroanLogin)); //provide username --> identity and username is same
+                esp_wifi_sta_wpa2_ent_set_password((uint8_t *)config.eduroanSenha, strlen(config.eduroanSenha)); //provide password
                 esp_wifi_sta_wpa2_ent_enable();
-                WiFi.begin(configuracao.wifiSsid);
+                WiFi.begin(config.wifiSsid);
                 vTaskDelay(5000/ portTICK_PERIOD_MS);
             }else
             {
-                WiFi.begin(configuracao.wifiSsid, configuracao.wifiSenha);
+                WiFi.begin(config.wifiSsid, config.wifiSenha);
                 vTaskDelay(5000/ portTICK_PERIOD_MS);
             }
             if (WiFi.status()!= WL_CONNECTED)
@@ -934,13 +677,13 @@ void atualizarRtc(bool wifiLigado)
             //Ajusta a hora do rtc pelo ntp
             //Verificando se há conexão com a internet para atualizar o relógio
             HTTPClient http;
-            http.begin(configuracao.hostTest); 
+            http.begin(config.hostTest); 
             int httpCode = http.GET();
             if(httpCode == HTTP_CODE_OK)//ok, há internet!
             {
                 http.end();
                 //Iniciando a atualização do relógio rtc
-                timeClient.setTimeOffset(configuracao.timeZone*3600);
+                timeClient.setTimeOffset(config.timeZone*3600);
                 timeClient.begin();
                 vTaskDelay(1000/ portTICK_PERIOD_MS);
                 timeClient.update();
@@ -951,4 +694,8 @@ void atualizarRtc(bool wifiLigado)
             }                    
         }
     }
+}
+void callback(char* topic, byte* payload, unsigned int length)
+{
+
 }
